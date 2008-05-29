@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<?python
+  import os
+  tool = os.path.basename(os.getcwd())
+  Tool = tool.capitalize()
+
+  from email import message_from_string as keywordparser
+  meta = keywordparser(filetext("control"))
+
+?>
+<html >
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=latin-1" />
+
+  <title><?python Tool ?> Tool</title>
+
+  <!-- Style sheets  -->
+  <style type="text/css">
+  <!--#include virtual="/css/wg-page.css" -->
+  <!--#include virtual="/css/highlight.css" -->
+  <!--#include virtual="/css/rst.css" -->
+  </style>
+  <!-- Javascript -->
+  <script src="/js/hide.js" type="text/javascript" ></script>
+</head>
+
+<body>
+  <div class="page">
+    <table border="0" width="100%" >
+      <tr>
+	<!--#include virtual="/inc/narrow-menu.html" -->
+	<td>
+
+	  <div class="content">
+
+	    <div>
+	      <!-- Caption -->
+	      <table width="100%">
+	        <tr>
+		  <td rowspan="2">
+		    <h2 align="left"><?python Tool ?> Tool</h2>
+		    <i><?python meta["description"].split("\n")[0] ?></i>
+		  </td>
+		  <td class="version" style="color: black; font-size:11pt;">
+		  </td>
+		</tr>
+		<tr>
+		  <!-- left column inherited from previous row -->
+		  <td class="chairs">
+		     <i>Version:</i> <?python meta["version"] ?>
+		     <br />
+
+		     <i>Author:</i>
+		     <?python
+			author = meta["author"] or meta["maintainer"]
+			words = author.split()
+			author = ""
+			for word in words:
+			    if word.find("@") > -1:
+				email = word.strip("<>").split("@")
+			    else:
+				author = author + word + " "
+			out('<script type="text/javascript"> showEmail("%s", "%s", "%s"); </script>\n' % (email[0], email[1], author))
+		    ?>
+		  </td>
+		</tr>
+	      </table>
+	      <b>
+		<a href="index">Home</a> |
+		<?python
+		  list = listdir(".", "[a-z]*\.(pyht|shtml)$")
+		  if os.path.isdir("build"):
+		      list += listdir("build", "[a-z]*\.(pyht|shtml)$")		      
+		  pages = ["index", "copyright"]
+		  for file in list:
+		      page, ext = os.path.splitext(os.path.basename(file))
+		      Page = page.capitalize()
+		      if not page in pages:
+			  out("""<a href="%s">%s</a> | """ % (page, Page))
+			  pages += [ page ]
+
+		  archive = "%s-%s.tgz" % (tool, meta["version"])
+		  if isfile(archive) or isfile("archive/"+archive):
+		      out("""<a href="%s">Download</a> | """ % archive )
+		  if isfile("distinfo"):
+		      out("""<a href="distinfo">Checksums</a> | """ )
+		?>
+		<script type="text/javascript"> showEmail("tools-discuss", "ietf.org?subject=<?python '%s-%s' % (Tool, meta['version']) ?>%20feedback", "Feedback"); </script> |
+		<a href="copyright">Copyright</a>
+	      </b>
+	    </div>
+	    <hr/>
+	    <p>
+	    <?python
+	       import re, sys, os
+
+	       if not "view" in args.keys():
+		   contentfile = "changelog"
+	       else:
+		   contentfile = args["view"]
+	       if filetime(contentfile+".html") > filetime(contentfile):
+		   content = filetext(contentfile+".html")
+	       else:
+		   content = filetext(contentfile)
+		   if not (re.search("<.*>", content) and re.search("</.*>", content)):
+		       content = "<pre>%s</pre>" % content
+		   else:
+		       content = re.sub("(?i)<(!DOCTYPE|/?html|/?body)[^>]*>\n*", "", content)
+		       content = re.sub("(?si)<head>.*</head>\n*", "", content)
+	    ?>
+
+	    <?python content ?>
+	    </p>
+	  </div>
+
+	  <!--#include virtual="/inc/footer.shtml" -->
+	</td>
+      </tr>
+    </table>
+  </div>
+</body>
+</html>
