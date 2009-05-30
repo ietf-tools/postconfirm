@@ -45,7 +45,9 @@ def filetext(file):
 # Setup: read initial data before daemonizing.
 
 conf = {}
+pid  = None
 whitelist = set([])
+blacklist = set([])
 hashkey  = None
 
 def read_whitelist(files):
@@ -54,27 +56,59 @@ def read_whitelist(files):
     whitelist = set([])
     for file in files:
         if os.path.exists(file):
-            log("Reading %s\n" % file)
             file = open(file)
-            whitelist |= set(file.read().split())
+            entries = set(file.read().lower().split())
+            whitelist |= entries
             file.close()
+            log("Read %s whitelist entries from %s\n" % (len(entries), file.name))
     log("Whitelist size: %s" % (len(whitelist)))
+
+# ------------------------------------------------------------------------------
+def read_blacklist(files):
+    global blacklist
+
+    blacklist = set([])
+    for file in files:
+        if os.path.exists(file):
+            file = open(file)
+            entries = set(file.read().lower().split())
+            blacklist |= entries
+            file.close()
+            log("Read %s blacklist entries from %s\n" % (len(entries), file.name))
+    log("Blacklist size: %s" % (len(blacklist)))
 
 # ------------------------------------------------------------------------------
 def sighup_handler(signum, frame):
     """Re-read our data files"""
-    read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
+    try:
+        read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
+    except:
+        pass
+    try:
+        read_blacklist(list(conf.blacklists))
+    except:
+        pass
 
 # ------------------------------------------------------------------------------
 def setup(configuration, files):
     global conf
+    global pid
     global hashkey
 
     conf = configuration
 
+    pid = os.getpid()
+
     hashkey = filetext(conf.key_file)
 
-    read_whitelist(files + list(conf.whitelists) + [ conf.confirmlist ])
+    try:
+        read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
+    except:
+        pass
+    try:
+        read_blacklist(list(conf.blacklists))
+    except:
+        pass
 
     signal.signal(signal.SIGHUP, sighup_handler)
 
@@ -116,12 +150,17 @@ def request_confirmation(sender, recipient, cachefn):
         <key> is binary
     """
 
-    if sender in [ "", recipient ]:
-        return
-
-    log(syslog.LOG_INFO, "Requesting confirmation from %s" % (sender,))
-
     filename = cachefn.split("/")[-1]
+
+    if sender.lower() in set([ "", recipient.lower() ]):
+        log(syslog.LOG_INFO, "Skipped requesting confirmation from <%s>" % (sender,))
+        raise SystemExit(1)
+
+    if sender.lower() in blacklist:
+        log(syslog.LOG_INFO, "Skipped confirmation from blacklisted <%s>" % (sender,))
+        raise SystemExit(1)
+
+    log(syslog.LOG_INFO, "Requesting confirmation for %s from <%s>" % (filename, sender,))
 
     hash_output = make_hash(sender, recipient, filename)
 
@@ -152,8 +191,13 @@ def verify_confirmation(sender, recipient, msg):
     
     parts = msg.get("subject", "").rsplit(":", 3)
     for i in range(len(parts)):
-        parts[i] = parts[i].strip()
+        parts[i] = parts[i].replace(" ", "")
+        parts[i] = parts[i].replace("\t", "")
     dummy, recipient, filename, hash = parts
+
+    # Require the sender to be somebody
+    if sender == "":
+        raise SystemExit(1)
 
     # Require a corresponding message in the cache:
     cachefn = os.path.join(conf.mail_cache_dir, filename)
@@ -163,22 +207,22 @@ def verify_confirmation(sender, recipient, msg):
 
     # Require that the hash matches
     if not make_hash(sender, recipient, filename) == hash:
-        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(%s, %s, %s) != %s" % (sender, recipient, filename, hash))
+        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(<%s>, %s, %s) != %s" % (sender, recipient, filename, hash))
         raise SystemExit(1)
 
     # We have a valid confirmation -- update the whitelist and the
-    # confirmation file 
-    log(syslog.LOG_INFO, "Adding %s to whitelist" % (sender, ))
+    # confirmation file
+    log(syslog.LOG_INFO, "Adding <%s> to whitelist" % (sender, ))
     whitelist.add(sender)
     file = open(conf.confirmlist, "a")
     file.write("%s\n" % sender)
     file.close()
 
-    # Tell parent to re-read the data files
-    os.kill(os.getppid(), signal.SIGHUP)
+    # Tell root daemon process to re-read the data files
+    os.kill(pid, signal.SIGHUP)
 
     # Output the cached message and delete the cache file
-    log(syslog.LOG_INFO, "Forwarding cached message from %s to %s" % (sender, recipient, ))
+    log(syslog.LOG_INFO, "Forwarding cached message from <%s> to %s" % (sender, recipient, ))
     file = open(cachefn)
     for line in file:
         sys.stdout.write(line)
@@ -187,14 +231,14 @@ def verify_confirmation(sender, recipient, msg):
 
 # ------------------------------------------------------------------------------
 def forward_whitelisted_post(sender, recipient):
-    log(syslog.LOG_INFO, "Forwarding from whitelisted sender %s" % (sender,))
+    log(syslog.LOG_INFO, "Forwarding from whitelisted sender <%s>" % (sender,))
     for line in sys.stdin:
         sys.stdout.write(line)
-    return 0
+    return 
 
 # ------------------------------------------------------------------------------
 def handle_unconfirmed_post(sender, recipient):
-    log(syslog.LOG_DEBUG, "Processing mail from %s ..." % (sender,))    
+    log(syslog.LOG_DEBUG, "Processing mail from <%s> to %s" % (sender, recipient))
     cachefn = cache_mail()
 
     file = open(cachefn)
@@ -246,7 +290,7 @@ def handler():
     sender  = os.environ["SENDER"].strip()
     recipient=os.environ["RECIPIENT"].strip()
 
-    if   sender in whitelist:
+    if   sender.lower() in whitelist:
         return forward_whitelisted_post(sender, recipient)
     else:
         return handle_unconfirmed_post(sender, recipient)

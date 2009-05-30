@@ -1,3 +1,27 @@
+postconfirmd (0.23)
+
+  * Tweaked log messages so that where empty addresses can occur, they
+    are enclosed in <>.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  
+
+postconfirmd (0.22)
+
+  * Added blacklists (entries on these will never receive confirmation
+    requests, so messages from them will just sit in the cache till they
+    are removed by whatever periodic cache cleanout is implemented.
+
+  * The internal sighup to re-read files did not go to the right process.
+    Fixed; confirmations are now picked up and remembered on the next
+    socket-handler process fork.
+
+  * Some mailers apparently will break contigous non-whitespace character
+    sequences in order to limit the lenght of header lines; this has the
+    effect of inserting tabs or spaces in the confirmation hash or ID.
+    Now deleting all embedded spaces in the confirmation subject components.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  02 Jul 2008 2:17:59 +0200
+
 postconfirmd (0.21)
 
   * wrapper: Updated the mailman wrapper script to not drop messages if the
@@ -24,7 +48,7 @@ postconfirmd (0.21)
   * Took out the prerequisites part of the Makefile.  AMS is not running Debian,
     anyway, so this will not work anyhow.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  01 Jul 2008 22:29:35 -0700
+ -- Henrik Levkowetz <henrik@levkowetz.com>  01 Jul 2008 22:29:35 +0200
 
 postconfirmd (0.20)
 
