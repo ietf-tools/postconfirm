@@ -33,12 +33,17 @@ include Makefile.common
 %.so : %.o
 	$(CC) $(SOFLAGS) -o $@ $(LDFLAGS) $<
 
-test::
+test: 
 	sudo -u $(user) postconfirmc --stop || echo postconfirmd not running
-	sudo -u $(user) postconfirmd
-	sleep 2
-	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< Hello; echo Result $$?
-	sudo -u $(user) SENDER=henrik-two@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< Hello; echo Result $$?
+	sudo rm -fv /var/run/postconfirm/confirmed # no confirmed addresses
+	sudo -u $(user) postconfirmd -d
+	sleep 1
+	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< "From: henrik@levkowetz.com\nSubject: Hello $$(date)\n\nHello";	    code=$$?; echo Result: $$code; [ $$code == 1 ]
+	sudo -u $(user) SENDER=henrik-two@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< "From: henrik-two@levkowetz.com\nSubject: Hello $$(date)\n\nHello"; code=$$?; echo Result: $$code; [ $$code == 0 ]
+	sleep 3
+	echo -e "\$$\nR\n~f\n.\n\nx\n" | sudo mail -N
+	sleep 3
+	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< "From: henrik@levkowetz.com\nSubject: Hello $$(date)\n\nHello";	    code=$$?; echo Result: $$code; [ $$code == 0 ]
 	sudo -u $(user) postconfirmc --stop
 
 install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
@@ -57,3 +62,5 @@ install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
 	sudo python -c "import compileall; compileall.compile_dir('$(shared)/$(module)/');"
 	sudo ln -sf $(shared)/$(module)/$(tool).py $(prefix)/sbin/$(tool)
 	sudo ln -sf $(shared)/$(module)/wrapper $(shared)/$(module)/mailman
+	sudo /etc/init.d/postconfirmd restart
+

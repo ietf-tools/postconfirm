@@ -1,7 +1,32 @@
+postconfirmd (0.28)
+
+  * Changed handler timeout to 300s
+    
+  * Changed logic to catch confirmation messages also when somebody
+    has been confirmed earlier, so as to release prior cached messages
+    and not forward the confirmation messages to the list.
+
+  * Adjusted log messages, to reduce the number of log messages in
+    some cases, and add information in other cases
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  30 Aug 2008 17:31:32 +0200
+
+postconfirmd (0.27)
+
+  * Minor tweaks
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  29 Aug 2008 11:12 +0200
+
 postconfirmd (0.26)
 
   * Added more timeouts to the daemon code, to catch the process
     deadlocks or resource waits which have been observed.
+
+  * Added individual timeout handlers, to try to get proper timeout
+    log messages specific to each timeout
+
+  * Where appropriate, raise SystemExit on timeout to return a proper
+    error code to the client
 
  -- Henrik Levkowetz <henrik@levkowetz.com>  29 Aug 2008 2:55:00 +0200
 
