@@ -1,0 +1,5 @@
+TODO
+
+      * Require whitelists to be normalized to lowercase, and add normalization
+	of received email addresses before processing.
+

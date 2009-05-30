@@ -1,0 +1,35 @@
+
+Steps to install the postconfirm frontend to mailman.  Tested with exim4, but should
+work with any mail agent which accepts sendmail style alias files with pipe
+redirection.
+
+1. Unpack the tarball.  Check the installation locations in 'Makefile',
+   in particular the settings for 'prefix' and 'shared'.  Also check
+   the settings in 'postconfirm.conf'; the install: target of 'Makefile'
+   assumes that the paths in the config file will be used.  If you want
+   things placed in other locations, you may have to change the settings
+   for 'prefix' and 'shared' in 'Makefile', and you may even have to
+   edit the lines of the 'install::' recipe.  When satisfied, run
+
+	make
+	make install
+
+2. Place the 'wrapper' script in a directory of your choice, for instance
+   /usr/local/postconfirm, and create a symlink to it named 'mailman' in
+   the same directory.  Then edit the WRAPPER_DIR variable in
+   /etc/mailman/mm_cfg.py to reflect the directory you placed the script
+   in.  ('make install' will install 'wrapper' in /usr/share/postconfirm,
+   and install a link 'mailman' in the same directory.  If this suits you,
+   and you don't want to make any tweaks to 'wrapper', you can point
+   /etc/mailman/mm_cfg.py at /usr/share/postconfirm directly.
+
+3. Edit the configuration variables of the wrapper script from 1. above so
+   that the FILTER_BIN and MAILMAN_BIN variables reflect the correct paths for
+   your system.
+
+4. Edit /etc/postconfirm.conf (or /etc/postconfirm/postconfirm.conf) to fit
+   your system.
+
+5. Start the postconfirm daemon by hand ('sudo /usr/share/postconfirm/postconfirmd')
+   or by running the init script 'sudo /etc/init.d/postconfirmd start'
+
