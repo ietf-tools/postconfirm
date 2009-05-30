@@ -20,6 +20,17 @@ DESCRIPTION
 
 %(options)s
 
+FILES
+        %(program)s reads its configuration from the following files (if found),
+        in the given order:
+        
+            <bin-dir>/postconfirm.conf
+            /etc/postconfirm.conf
+            /etc/postconfirm/postconfirm.conf
+            ~/.postconfirmrc
+
+        where <bin-dir> is the directory where postconfirmd is installed.
+
 AUTHOR
 	Written by Henrik Levkowetz, <henrik@merlot.tools.ietf.org>. Uses the
         daemonize module from Chad J. Schroeder, from the Python Cookbook at
@@ -42,37 +53,17 @@ COPYRIGHT
 import re
 import sys
 import os.path
+import stat
 import getopt
-import sockserver
-import daemonize
-import service
 import config
 import StringIO
 
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-version = "v0.10"
+version = "0.33"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
-
-# ------------------------------------------------------------------------------
-# Utility functions
-
-def mkdir(path):
-    if not os.path.exists(path):
-        print "Creating directory '%s'" % path
-        os.mkdir(path)
-        return True
-    return False
-
-def mkfile(file):
-    path = os.path.dirname(file)
-    mkdir(path)
-    if not os.path.exists(file):
-        os.mknod(file)
-        return True
-    return False
 
 # ------------------------------------------------------------------------------
 # Read config file
@@ -81,46 +72,23 @@ def mkfile(file):
 merger = config.ConfigMerger(lambda x, y, z: "overwrite")
 
 default = """
-mail_template:	"/etc/postconfirm/confirm.mail.template"
-mail_cache_dir:	"/var/cache/postconfirm"
-key_file:	"/etc/postconfirm/hash.key"
-smtp_host:	localhost
 foreground:     False
 debug:          False
-whitelists:     [ "/etc/postconfirm/whitelist", ]
-confirmlist:    "/var/run/postconfirm/confirmed"
 """
 
 default = StringIO.StringIO(default)
 conf = config.Config(default)
 
-for conffile in ["/etc/postconfirm.conf",
+for conffile in [progdir+"/postconfirm.conf",
+                "/etc/postconfirm.conf",
                 "/etc/postconfirm/postconfirm.conf",
-                progdir+"/postconfirm.conf",
-                os.getcwd()+"/postconfirm.conf",
+                os.path.expanduser("~/.postconfirmrc"),
             ]:
     if os.path.exists(conffile):
         merger.merge(conf, config.Config(conffile))
 
 # import pprint
 # pprint.pprint(dict(conf), sys.stdout, 4, 40)
-
-# ------------------------------------------------------------------------------
-# Some assertions
-assert(os.path.exists(conf.mail_template))
-assert(type(conf.whitelists) == config.Sequence)
-
-# ------------------------------------------------------------------------------
-# Create directories and do initialization, as needed:
-
-mkdir(conf.mail_cache_dir)
-
-if mkfile(conf.key_file):
-    keyfile = open(conf.key_file, "w")
-    keyfile.write(os.urandom(128))
-    keyfile.close()
-
-mkfile(conf.confirmlist)
 
 # ------------------------------------------------------------------------------
 # Create list of options, for the help text
@@ -161,42 +129,111 @@ for opt, value in opts:
         print program, version
         sys.exit(0)
 
+
+# ------------------------------------------------------------------------------
+
+import syslog
+import sockserver
+import daemonize
+import service
+import pwd
+import grp
+    
 # ------------------------------------------------------------------------------
 # Set up logging
 
-import syslog
-syslog.openlog("postconfirm", syslog.LOG_PID, syslog.LOG_DAEMON)
+syslog.openlog("postconfirmd", syslog.LOG_PID)
 log = syslog.syslog
+
+# ------------------------------------------------------------------------------
+# Utility functions
+
+def mkdir(path):
+    if not os.path.exists(path):
+        print "Creating directory '%s'" % path
+        os.mkdir(path)
+        return True
+    return False
+
+def mkfile(file):
+    path = os.path.dirname(file)
+    mkdir(path)
+    if not os.path.exists(file):
+        os.mknod(file)
+        return True
+    return False
+
+# ------------------------------------------------------------------------------
+# Some assertions
+assert(os.path.exists(conf.mail_template))
+assert(type(conf.whitelists) == config.Sequence)
+
+# ------------------------------------------------------------------------------
+# Create directories and do initialization, as needed:
+
+mkdir(conf.mail_cache_dir)
+
+if mkfile(conf.key_file):
+    keyfile = open(conf.key_file, "w")
+    keyfile.write(os.urandom(128))
+    keyfile.close()
+
+mkfile(conf.confirmlist)
 
 # ------------------------------------------------------------------------------
 # set default values, if any
 socket_path = "/var/run/postconfirm/socket" % globals()
 mkdir(os.path.dirname(socket_path))
+
+
+
+# ------------------------------------------------------------------------------
+# Maybe daemonize
+
+# Get user and group we should execute as
+user, pwd, uid, gid, gecos, home, shell = list(pwd.getpwnam(conf.daemon_user))
+if "daemon_group" in conf:
+    group, gpwd, gid, members = list(grp.getgrnam(conf.daemon_group))
+
+log("Postconfirm daemon v%s starting." % (version, ))
+sys.stderr.write("\nPostconfirm daemon v%s starting.\n" % (version, ))
+if not conf.foreground:
+    pidfname = "/var/run/%s.pid" % program
+
+    pidfile = open(pidfname, "w")
+    os.chown(pidfile.name, uid, gid)
+    pidfile.close()
+
+    os.setgid(gid)
+    os.setuid(uid)
+    daemonize.createDaemon()
+
+    pidfile = open(pidfname, "w")
+    pidfile.write("%s" % os.getpid())
+    pidfile.close()
+else:
+    log("Not daemonizing.")
+    sys.stderr.write("Not daemonizing.\n")
+
 sys.stderr.write("Will listen on unix domain socket '%s'\n" % socket_path)
 
+# ------------------------------------------------------------------------------
+# connect stdout and stderr to syslog, to catch messages, exceptions, traceback
+log("Redirecting stdout and stderr to syslog")
+syslog.write = syslog.syslog
+sys.stdout = syslog
+sys.stderr = syslog
 
 # ------------------------------------------------------------------------------
 # Set up the service
 service.setup(conf, args)
 
 # ------------------------------------------------------------------------------
-# Maybe daemonize
-if not conf.foreground:
-    log("Postconfirm daemon starting.")
-    sys.stderr.write("Daemonizing...\n")
-    daemonize.createDaemon()
-else:
-    sys.stderr.write("Not daemonizing.\n")
-
-# ------------------------------------------------------------------------------
-# connect stdout and stderr to syslog, to catch messages, exceptions, traceback
-syslog.write = syslog.syslog
-sys.stdout = syslog
-sys.stderr = syslog
-
-# ------------------------------------------------------------------------------
 # Start the server
+
 server = sockserver.ReadyExec(service.handler, socket_path, debug=conf.debug)
+
+os.chmod(socket_path, stat.S_IRWXU | stat.S_IRWXG )
 try:        
     server.serve_forever()
 finally:
