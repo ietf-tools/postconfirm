@@ -50,6 +50,7 @@ pid  = None
 whitelist = set([])
 blacklist = set([])
 whiteregex = None
+blackregex = None
 hashkey  = None
 
 # ------------------------------------------------------------------------------
@@ -68,7 +69,6 @@ def read_whitelist(files):
 
 # ------------------------------------------------------------------------------
 def read_regexes(files):
-    global whiteregex
 
     regexlist = []
     for file in files:
@@ -88,7 +88,10 @@ def read_regexes(files):
             log("Read %s regexlist entries from %s\n" % (len(entries), file.name))
     log("Regexlist size: %s" % (len(regexlist)))
     if regexlist:
-        whiteregex = "^(%s)$" % "|".join(regexlist)
+        regex = "^(%s)$" % "|".join(regexlist)
+    else:
+        regex = ""        
+    return regex
 
 # ------------------------------------------------------------------------------
 def read_blacklist(files):
@@ -106,6 +109,9 @@ def read_blacklist(files):
 
 # ------------------------------------------------------------------------------
 def read_data():
+    global whiteregex
+    global blackregex
+    
     t1 = time.time()
     try:
         read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
@@ -113,7 +119,7 @@ def read_data():
         pass
 
     try:
-        read_regexes(list(conf.whiteregex))
+        whiteregex = read_regexes(list(conf.whiteregex))
     except:
         pass
 
@@ -121,6 +127,12 @@ def read_data():
         read_blacklist(list(conf.blacklists))
     except:
         pass
+
+    try:
+        blackregex = read_regexes(list(conf.blackregex))
+    except:
+        pass
+
     t2 = time.time()
     log(syslog.LOG_INFO, "Wall time for reading data: %.6f s." % (t2 - t1))    
 
@@ -217,7 +229,7 @@ def request_confirmation(sender, recipient, cachefn, msg):
         os.unlink(cachefn)
         return 1
 
-    if sender.lower() in blacklist:
+    if sender.lower() in blacklist or (blackregex and re.match(blackregex, sender.lower())):
         log(syslog.LOG_INFO, "Skipped confirmation from blacklisted <%s>" % (sender,))
         os.unlink(cachefn)
         return 1
