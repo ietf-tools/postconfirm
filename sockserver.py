@@ -270,7 +270,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         except TimeoutError:
             raise SystemExit(4)
         finally:
-            signal.signal(signal.SIGALRM, flush_timeout)
+            signal.signal(signal.SIGALRM, handler_timeout)
             signal.alarm(self.negotiate_secs)
             try:
                 for std in sys.stdout, sys.stderr:
@@ -527,8 +527,7 @@ def handler_timeout(signum, frame):
     err(msg)
     raise TimeoutError(msg)
 
-def fd_flush_timeout(signum, frame):
+def flush_timeout(signum, frame):
     msg = "timeout waiting for output streams to be flushed"
     err(msg)
     raise TimeoutError(msg)
-

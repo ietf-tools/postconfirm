@@ -61,7 +61,7 @@ import StringIO
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-version = "0.26"
+version = "0.27"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
 

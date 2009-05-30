@@ -4,6 +4,7 @@ WFLAGS=-Waggregate-return -Wall -Wcast-align -Wcast-qual -Wconversion -Werror -W
 SOFLAGS=-pthread -shared -Wl,-O1 -Wl,-Bsymbolic-functions 
 
 CC=gcc
+SHELL=/bin/bash
 
 tool := postconfirmd
 
@@ -31,6 +32,14 @@ include Makefile.common
 
 %.so : %.o
 	$(CC) $(SOFLAGS) -o $@ $(LDFLAGS) $<
+
+test::
+	sudo -u $(user) postconfirmc --stop || echo postconfirmd not running
+	sudo -u $(user) postconfirmd
+	sleep 2
+	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< Hello; echo Result $$?
+	sudo -u $(user) SENDER=henrik-two@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< Hello; echo Result $$?
+	sudo -u $(user) postconfirmc --stop
 
 install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
 	sudo install -o root    -d /etc/$(module) $(shared)/$(module)/
