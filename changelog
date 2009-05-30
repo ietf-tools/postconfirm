@@ -1,3 +1,31 @@
+postconfirmd (0.21)
+
+  * wrapper: Updated the mailman wrapper script to not drop messages if the
+    postconfirmd daemon is not running, or gives an error return different
+    from the error code 1 which signifies that a confirmation request was
+    sent.
+
+  * sendmail.py: Stopped logging mail sending
+
+  * service.py: Changed the confirmation subject pattern to accept 822 lines
+    broken across lines.
+
+  * service.py: Added SIGHUP handling, so a HUP will cause the daemon to re-
+    read the whitelist and confirmed files
+
+  * service.py: Short-circuited responses to blank and self.  No need to try
+    to send out those.
+
+  * Re-worked some of the logging, to make it more succinct.
+
+  * Moved service setup to after the daemonization, to make the sighup handler
+    available in the right process.
+
+  * Took out the prerequisites part of the Makefile.  AMS is not running Debian,
+    anyway, so this will not work anyhow.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  01 Jul 2008 22:29:35 -0700
+
 postconfirmd (0.20)
 
   * First released version.

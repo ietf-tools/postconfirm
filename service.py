@@ -24,11 +24,12 @@ import sendmail
 import email
 import datetime
 import hmac
+import signal
 
 log = syslog.syslog
 
 confirm_fmt = "Confirm: %s:%s:%s"
-confirm_pat = "Confirm: .*:.*:.*"
+confirm_pat = "Confirm:[ \t\n\r]+.*:.*:.*"
 
 # ------------------------------------------------------------------------------
 def filetext(file):
@@ -47,25 +48,35 @@ conf = {}
 whitelist = set([])
 hashkey  = None
 
+def read_whitelist(files):
+    global whitelist
+
+    whitelist = set([])
+    for file in files:
+        if os.path.exists(file):
+            log("Reading %s\n" % file)
+            file = open(file)
+            whitelist |= set(file.read().split())
+            file.close()
+    log("Whitelist size: %s" % (len(whitelist)))
+
+# ------------------------------------------------------------------------------
+def sighup_handler(signum, frame):
+    """Re-read our data files"""
+    read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
+
+# ------------------------------------------------------------------------------
 def setup(configuration, files):
     global conf
-    global whitelist
     global hashkey
 
     conf = configuration
 
     hashkey = filetext(conf.key_file)
 
-    for file in files + list(conf.whitelists) + [ conf.confirmlist ]:
-        if os.path.exists(file):
-            sys.stderr.write("Reading %s\n" % file)
-            file = open(file)
-            whitelist |= set(file.read().split())
-            file.close()
-    print "Whitelist size: %s" % (len(whitelist))
-    print "Initialized."
+    read_whitelist(files + list(conf.whitelists) + [ conf.confirmlist ])
 
-
+    signal.signal(signal.SIGHUP, sighup_handler)
 
 # ------------------------------------------------------------------------------
 def cache_mail():
@@ -104,6 +115,9 @@ def request_confirmation(sender, recipient, cachefn):
         <cachefn> is the tempfile.mkstmp basename
         <key> is binary
     """
+
+    if sender in [ "", recipient ]:
+        return
 
     log(syslog.LOG_INFO, "Requesting confirmation from %s" % (sender,))
 
@@ -159,6 +173,9 @@ def verify_confirmation(sender, recipient, msg):
     file = open(conf.confirmlist, "a")
     file.write("%s\n" % sender)
     file.close()
+
+    # Tell parent to re-read the data files
+    os.kill(os.getppid(), signal.SIGHUP)
 
     # Output the cached message and delete the cache file
     log(syslog.LOG_INFO, "Forwarding cached message from %s to %s" % (sender, recipient, ))
@@ -219,15 +236,15 @@ def handler():
         cleans out the cache with desired intervals and cache retention time.
     """
 
-    log(syslog.LOG_INFO, "Entered service handler")
+    #log(syslog.LOG_INFO, "Entered service handler")
 
     for var in ["SENDER", "RECIPIENT" ]:
         if not var in os.environ:
             log(syslog.LOG_ERR, "Environment variable '%s' not set -- can't process input" % (var))
             return 3
 
-    sender  = os.environ["SENDER"]
-    recipient=os.environ["RECIPIENT"]
+    sender  = os.environ["SENDER"].strip()
+    recipient=os.environ["RECIPIENT"].strip()
 
     if   sender in whitelist:
         return forward_whitelisted_post(sender, recipient)

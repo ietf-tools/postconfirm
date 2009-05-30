@@ -61,7 +61,7 @@ import StringIO
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-version = "0.20"
+version = "0.21"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
 
@@ -188,10 +188,6 @@ sys.stderr.write("\n")
 sys.stderr.write("Will listen on unix domain socket '%s'\n" % socket_path)
 
 # ------------------------------------------------------------------------------
-# Set up the service
-service.setup(conf, args)
-
-# ------------------------------------------------------------------------------
 # Maybe daemonize
 
 # Get user and group we should execute as
@@ -200,7 +196,7 @@ if "daemon_group" in conf:
     group, gpwd, gid, members = list(grp.getgrnam(conf.daemon_group))
 
 if not conf.foreground:
-    log("Postconfirm daemon starting.")
+    log("Postconfirm daemon v%s starting." % (version, ))
     sys.stderr.write("Daemonizing...\n")
     pidfname = "/var/run/%s.pid" % program
 
@@ -224,6 +220,10 @@ log("Redirecting stdout and stderr to syslog")
 syslog.write = syslog.syslog
 sys.stdout = syslog
 sys.stderr = syslog
+
+# ------------------------------------------------------------------------------
+# Set up the service
+service.setup(conf, args)
 
 # ------------------------------------------------------------------------------
 # Start the server
