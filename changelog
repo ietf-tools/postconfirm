@@ -1,3 +1,16 @@
+postconfirmd (0.24)
+
+  * Tweaked the log messages to give more information when a confirmation
+    fails due to hash mismatch
+
+  * Added regex whitelists.  These are *much* more costly than regular
+    whitelist entries, so should be used sparingly.
+
+  * Use a blank subject line if there is no Subject: header in the message,
+    rather than throwing an exception.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  10 Jul 2008 2:16:52 +0200
+
 postconfirmd (0.23)
 
   * Tweaked log messages so that where empty addresses can occur, they
