@@ -1,4 +1,4 @@
-Repository: postconfirm
+Source: postconfirm
 Version: 0.20
 Section: text
 Priority: optional
@@ -6,6 +6,4 @@ Maintainer: Henrik Levkowetz <henrik@merlot.tools.ietf.org>
 Package: postconfirm
 Architecture: any
 Depends: 
-Ietf:
-Url:
 Description: 

@@ -20,17 +20,15 @@ import base64
 import hashlib
 import struct
 import interpolate
+import sendmail
 import email
-import email.parser
+import datetime
 import hmac
-import signal
-import smtplib
-from email.MIMEText import MIMEText
 
 log = syslog.syslog
 
 confirm_fmt = "Confirm: %s:%s:%s"
-confirm_pat = "Confirm:[ \t\n\r]+.*:.*:.*"
+confirm_pat = "Confirm: .*:.*:.*"
 
 # ------------------------------------------------------------------------------
 def filetext(file):
@@ -46,153 +44,38 @@ def filetext(file):
 # Setup: read initial data before daemonizing.
 
 conf = {}
-pid  = None
 whitelist = set([])
-blacklist = set([])
-whiteregex = None
-blackregex = None
 hashkey  = None
 
-# ------------------------------------------------------------------------------
-def read_whitelist(files):
-    global whitelist
-
-    whitelist = set([])
-    for file in files:
-        if os.path.exists(file):
-            file = open(file)
-            entries = set(file.read().lower().split())
-            whitelist |= entries
-            file.close()
-            log("Read %s whitelist entries from %s\n" % (len(entries), file.name))
-    log("Whitelist size: %s" % (len(whitelist)))
-
-# ------------------------------------------------------------------------------
-def read_regexes(files):
-
-    regexlist = []
-    for file in files:
-        if os.path.exists(file):
-            file = open(file)
-            entries = file.read().split()
-            file.close()
-            for entry in entries:
-                try:
-                    dummy = re.compile(entry)
-                except Exception, e:
-                    log(syslog.LOG_ERR, "Invalid regex (not added to whitelist): %s" % (entry))
-                    log(syslog.LOG_ERR, e)
-                else:
-                    if not entry in regexlist:
-                        regexlist.append(entry)
-            log("Read %s regexlist entries from %s\n" % (len(entries), file.name))
-    log("Regexlist size: %s" % (len(regexlist)))
-    if regexlist:
-        regex = "^(%s)$" % "|".join(regexlist)
-    else:
-        regex = ""        
-    return regex
-
-# ------------------------------------------------------------------------------
-def read_blacklist(files):
-    global blacklist
-
-    blacklist = set([])
-    for file in files:
-        if os.path.exists(file):
-            file = open(file)
-            entries = set(file.read().lower().split())
-            blacklist |= entries
-            file.close()
-            log("Read %s blacklist entries from %s\n" % (len(entries), file.name))
-    log("Blacklist size: %s" % (len(blacklist)))
-
-# ------------------------------------------------------------------------------
-def read_data():
-    global whiteregex
-    global blackregex
-    
-    t1 = time.time()
-    try:
-        read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
-    except:
-        pass
-
-    try:
-        whiteregex = read_regexes(list(conf.whiteregex))
-    except:
-        pass
-
-    try:
-        read_blacklist(list(conf.blacklists))
-    except:
-        pass
-
-    try:
-        blackregex = read_regexes(list(conf.blackregex))
-    except:
-        pass
-
-    t2 = time.time()
-    log(syslog.LOG_INFO, "Wall time for reading data: %.6f s." % (t2 - t1))    
-
-# ------------------------------------------------------------------------------
-def sighup_handler(signum, frame):
-    """Re-read our data files"""
-    read_data()
-
-# ------------------------------------------------------------------------------
 def setup(configuration, files):
     global conf
-    global pid
+    global whitelist
     global hashkey
 
     conf = configuration
 
-    pid = os.getpid()
-
     hashkey = filetext(conf.key_file)
 
-    read_data()
+    for file in files + list(conf.whitelists) + [ conf.confirmlist ]:
+        if os.path.exists(file):
+            sys.stderr.write("Reading %s\n" % file)
+            file = open(file)
+            whitelist |= set(file.read().split())
+            file.close()
+    print "Whitelist size: %s" % (len(whitelist))
+    print "Initialized."
 
-    signal.signal(signal.SIGHUP, sighup_handler)
 
-
-# ------------------------------------------------------------------------------
-def sendmail(sender, recipient, subject, text, conf={"smtp_host":"localhost",}, headers={}):
-
-    msg = MIMEText(text)
-    msg['Subject'] = subject
-    msg['From'] = sender
-    msg['To'] = recipient
-    for key in headers:
-        msg[key] = headers[key]
-    message = msg.as_string()
-
-    try:
-        server = smtplib.SMTP(conf["smtp_host"])
-        server.sendmail(sender, recipient, message)
-        server.quit()
-        #log("Sent mail from '%s' to '%s' about '%s'" % (sender, recipient, subject))
-        return True
-    except Exception, e:
-        log(repr(e))
 
 # ------------------------------------------------------------------------------
 def cache_mail():
     seconds = base64.urlsafe_b64encode(struct.pack(">i",int(time.time()))).strip("=")
     outfd, outfn = tempfile.mkstemp(seconds, "", conf.mail_cache_dir)
     out = os.fdopen(outfd, "w+")
-    
-    msg = text = sys.stdin.read(65536)
-    all = True
-    while text:
-        out.write(text)
-        text = sys.stdin.read(65536)
-        if text:
-            all = False
+    for line in sys.stdin:
+        out.write(line)
     out.close()
-    return outfn, msg, all
+    return outfn
 
 # ------------------------------------------------------------------------------
 def hash(bytes):
@@ -208,7 +91,7 @@ def pad(bytes):
     return bytes + "=" * ((4 - len(bytes) % 4 ) % 4)
 
 # ------------------------------------------------------------------------------
-def request_confirmation(sender, recipient, cachefn, msg):
+def request_confirmation(sender, recipient, cachefn):
     """Generate a confirmation request, and send it to the poster for confirmation.
 
     The request subject line contains:
@@ -222,21 +105,11 @@ def request_confirmation(sender, recipient, cachefn, msg):
         <key> is binary
     """
 
+    log(syslog.LOG_INFO, "Requesting confirmation from %s" % (sender,))
+
     filename = cachefn.split("/")[-1]
 
-    if sender.lower() in set([ "", recipient.lower() ]):
-        log(syslog.LOG_INFO, "Skipped requesting confirmation from <%s>" % (sender,))
-        os.unlink(cachefn)
-        return 1
-
-    if sender.lower() in blacklist or (blackregex and re.match(blackregex, sender.lower())):
-        log(syslog.LOG_INFO, "Skipped confirmation from blacklisted <%s>" % (sender,))
-        os.unlink(cachefn)
-        return 1
-
     hash_output = make_hash(sender, recipient, filename)
-
-    log(syslog.LOG_INFO, "Requesting confirmation: <%s> to %s, '%s', %s" % (sender, recipient, filename, hash_output))
 
     #print "Hash input: %s" % (hash_input, )
     #print "Hash output: %s" % (hash_output, )
@@ -247,77 +120,77 @@ def request_confirmation(sender, recipient, cachefn, msg):
     # time as we split the interesting stuff into parts.
     subject = confirm_fmt % (recipient, filename, hash_output)
 
+    file = open(cachefn)
+    msg = email.message_from_file(file)
+    file.close()
+
     template = filetext(conf.mail_template)
     text = str(interpolate.Interpolator(template))
 
-    sendmail(recipient, sender, subject, text, conf)
+    sendmail.sendmail(recipient, sender, subject, text, conf)
 
-    return 1
+    raise SystemExit(1)
     
 
 # ------------------------------------------------------------------------------
 def verify_confirmation(sender, recipient, msg):
-    log(syslog.LOG_DEBUG, "Verifying confirmation from <%s> to %s" % (sender, recipient))
+    log(syslog.LOG_DEBUG, "Verifying confirmation...")
     
-    subject = msg.get("subject", "")
-    subject = re.sub("\s", "", subject)
-    dummy, recipient, filename, hash = subject.rsplit(":", 3)
-
-    # Require the sender to be somebody
-    if sender == "":
-        return 1
+    parts = msg.get("subject", "").rsplit(":", 3)
+    for i in range(len(parts)):
+        parts[i] = parts[i].strip()
+    dummy, recipient, filename, hash = parts
 
     # Require a corresponding message in the cache:
     cachefn = os.path.join(conf.mail_cache_dir, filename)
     if not os.path.exists(cachefn):
         log(syslog.LOG_WARNING, "No cached message for confirmation '%s'" % (filename))
-        return 1
+        raise SystemExit(1)
 
     # Require that the hash matches
-    good_hash = make_hash(sender, recipient, filename)
-    if not good_hash == hash:
-        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(<%s>, '%s', '%s') -> %s != %s" % (sender, recipient, filename, good_hash, hash))
-        return 1
+    if not make_hash(sender, recipient, filename) == hash:
+        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(%s, %s, %s) != %s" % (sender, recipient, filename, hash))
+        raise SystemExit(1)
 
     # We have a valid confirmation -- update the whitelist and the
-    # confirmation file
-    if sender.lower() in whitelist:
-        log(syslog.LOG_INFO, "Already in whitelist: <%s>" % (sender, ))
-    else:
-        log(syslog.LOG_INFO, "Adding <%s> to whitelist" % (sender, ))
-        whitelist.add(sender)
-        file = open(conf.confirmlist, "a")
-        file.write("%s\n" % sender)
-        file.close()
-
-        # Tell root daemon process to re-read the data files
-        os.kill(pid, signal.SIGHUP)
+    # confirmation file 
+    log(syslog.LOG_INFO, "Adding %s to whitelist" % (sender, ))
+    whitelist.add(sender)
+    file = open(conf.confirmlist, "a")
+    file.write("%s\n" % sender)
+    file.close()
 
     # Output the cached message and delete the cache file
-    log(syslog.LOG_INFO, "Forwarding cached message from <%s> to %s" % (sender, recipient, ))
+    log(syslog.LOG_INFO, "Forwarding cached message from %s to %s" % (sender, recipient, ))
     file = open(cachefn)
     for line in file:
         sys.stdout.write(line)
     file.close()
     os.unlink(cachefn)
 
+# ------------------------------------------------------------------------------
+def forward_whitelisted_post(sender, recipient):
+    log(syslog.LOG_INFO, "Forwarding from whitelisted sender %s" % (sender,))
+    for line in sys.stdin:
+        sys.stdout.write(line)
     return 0
 
 # ------------------------------------------------------------------------------
-def forward_whitelisted_post(sender, recipient, cachefn, msg, all):
-    log(syslog.LOG_DEBUG, "Forwarding from whitelisted <%s> to %s" % (sender, recipient))
-    if all:
-        sys.stdout.write(msg)
+def handle_unconfirmed_post(sender, recipient):
+    log(syslog.LOG_DEBUG, "Processing mail from %s ..." % (sender,))    
+    cachefn = cache_mail()
+
+    file = open(cachefn)
+    # Limit how much we read -- a confirmation mail shouldn't be larger than
+    # a couple of k at the most:
+    text = file.read(8192)
+    msg = email.message_from_string(text)
+    file.close()
+
+    if re.search(confirm_pat, msg["subject"]):
+        verify_confirmation(sender, recipient, msg)
     else:
-        cachefd = open(cachefn)
-        while True:
-            text = cachefd.read(8192)
-            if not text:
-                break
-            sys.stdout.write(text)
-        cachefd.close()
-    os.unlink(cachefn)
-    return 0
+        request_confirmation(sender, recipient, cachefn)
 
 # ------------------------------------------------------------------------------
 # Service handler
@@ -346,32 +219,18 @@ def handler():
         cleans out the cache with desired intervals and cache retention time.
     """
 
-    t1 = time.time()
+    log(syslog.LOG_INFO, "Entered service handler")
 
     for var in ["SENDER", "RECIPIENT" ]:
         if not var in os.environ:
             log(syslog.LOG_ERR, "Environment variable '%s' not set -- can't process input" % (var))
             return 3
 
-    sender  = os.environ["SENDER"].strip()
-    recipient=os.environ["RECIPIENT"].strip()
+    sender  = os.environ["SENDER"]
+    recipient=os.environ["RECIPIENT"]
 
-    cachefn, msg, all = cache_mail()
-
-    headers = email.parser.Parser().parsestr(msg, headersonly=True)
-    if re.search(confirm_pat, headers.get("subject", "")):
-        err =  verify_confirmation(sender, recipient, headers)
-        os.unlink(cachefn)
+    if   sender in whitelist:
+        return forward_whitelisted_post(sender, recipient)
     else:
-        if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
-        else:
-            err = request_confirmation(sender, recipient, cachefn, headers)
+        return handle_unconfirmed_post(sender, recipient)
 
-    t2 = time.time()
-    log(syslog.LOG_INFO, "Wall time in handler: %.6f s." % (t2 - t1))
-
-    if err:
-        raise SystemExit(err)
-
-    

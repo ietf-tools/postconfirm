@@ -1,7 +1,9 @@
 import os
 import smtplib
-import syslog.syslog as log
+import syslog
 from email.MIMEText import MIMEText
+
+log = syslog.syslog
 
 def sendmail(sender, recipient, subject, text, conf={"smtp_host":"localhost",}, headers={}):
 
@@ -30,4 +32,4 @@ def sendmail(sender, recipient, subject, text, conf={"smtp_host":"localhost",}, 
             server.quit()
         except:
             log(repr(e))
-        return False
+        raise e

@@ -1,32 +1,26 @@
 #!/bin/bash
 
-version="0.33"
+version="0.20"
 
 # --- Configuration variables ---
 
-# the filter executable:
+# TMDA's distributed tmda-filter executable:
 FILTER_BIN=/usr/local/bin/postconfirmc
 
 # Mailman's distributed mailman executable:
-MAILMAN_BIN=/usr/lib/mailman/mail/mailman
-
-# Mail handler executable
-SENDMAIL_BIN=/usr/sbin/sendmail
-
-# Where we store mailman commands identified as spam
-SPAM_STASH=/a/postconfirm/cache
+MAILMAN_BIN=/var/lib/mailman/mail/mailman
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
    export RUNNING=$0
-   $0 "$@" 2>&1 | logger -i -t postconfirmw
+   $0 "$@" 2>&1 | logger -i -t postconfirm
    exit ${PIPESTATUS[0]}
 fi
 
 
 # Command line arguments
 action="$1"
-rcpt="$2"
+list="$2"
 domain="$3"
 
 [ "$domain" ] || domain=${RECIPIENT##*@}
@@ -63,67 +57,35 @@ if [ "$DEBUG" ]; then
 fi
 unset HOME
 
-SEND_LOCALPART=${SENDER%@*}
-RECV_LOCALPART=${RECIPIENT%@*}
+RECIPIENT=${RECIPIENT%@*}@$domain
 
-if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
-    note "Mailman response piped directly to mailman"
-    $MAILMAN_BIN "$action" "$rcpt"
-elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" = filter ]; then
+# This test doesn't work if $domain contains a dash, but ietf.org doesn't ,;-) :
+if [ "${SENDER##*-}" = "bounces@$domain" -a "${RECIPIENT##*-}" = "owner@$domain" ]; then
+    note " * Mailman response piped directly to mailman"
+    $MAILMAN_BIN "$action" "$list"
+elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
     # Using a temp file to hold the message isn't pretty, but we need to catch the exit
     # code from tmda_filter to decide whether to pipe stuff into mailman or not, and
     # neither $? or $PIPESTATUS[0] lets us do that inside the pipe itself.
-    tmp=$(mktemp -t postconfirm-tmp-XXXXXX)
-    out=$(mktemp -t postconfirm-out-XXXXXX)
-    err=$(mktemp -t postconfirm-err-XXXXXX)
+    tmp=$(mktemp -t postconfirm-tmp-XXXXX)
+    err=$(mktemp -t postconfirm-err-XXXXX)
 
-    cat - > $tmp
-
-    note "Input piped to postconfirm"
-    $FILTER_BIN < $tmp >$out 2>$err
-    errnum=$?
-    
-    if [ "$DEBUG" ]; then
-	echo "--- $(date +%Y-%m-%d_%H:%M): $* [$SENDER => $RECIPIENT] ---"	>> /tmp/postconfirm-debug.log
-	head $out								>> /tmp/postconfirm-debug.log
-    fi
-
-    if   [ $errnum == 0 ]; then
-	if [ "$action" = filter ]; then
-	    note "Input forwarded to MTA"
-	    $SENDMAIL_BIN "$rcpt@$domain" < $out
-	else
-	    note "Input forwarded to mailman"
-	    $MAILMAN_BIN "$action" "$rcpt" < $out
+    note " * Input piped to postconfirm"
+    if $FILTER_BIN >$tmp 2>$err; then
+	note " * Input forwarded to mailman"
+	$MAILMAN_BIN "$action" "$list" < $tmp
+	if [ "$DEBUG" ]; then
+	    echo "--- $(date +%Y-%m-%d_%H:%M): $* [$SENDER => $RECIPIENT] ---"	>> /tmp/postconfirm-debug.log
+	    head $tmp								>> /tmp/postconfirm-debug.log
 	fi
-    elif [ $errnum == 1 ]; then
-	note "Error return $errnum from $FILTER_BIN -- not forwarding"
+    else
+	note " * Error return $? from $FILTER_BIN -- not forwarding"
 	[ "$DEBUG" ] && cat $err
-    else
-	if [ "$action" = filter ]; then
-	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to MTA"
-	    $SENDMAIL_BIN "$rcpt@$domain" < $tmp
-	else
-	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
-	    $MAILMAN_BIN "$action" "$rcpt" < $tmp
-	fi
     fi
-    [ "$DEBUG" ] || rm -f $tmp $out $err
+    rm -f $tmp $err
 else
-    cmd=$(mktemp -t postconfirm-cmd-XXXXX)
-    cat - > $cmd
-    spamflag=$(echo $(formail -c -x "X-Spam-Flag" < $cmd))
-    if [ "$spamflag" = "YES" ]; then
-	spam=$(mktemp "$SPAM_STASH/spamXXXXXXXX")
-	mv $cmd $spam
-	echo "Mailman command flagged as spam, saved as $spam"
-    else
-	actn=$(mktemp "$SPAM_STASH/actnXXXXXXXX")
-	mv $cmd $actn
-	echo "Command '$action': <$SENDER> -> $rcpt  piped to mailman after spam check, saved as $actn"
-	$MAILMAN_BIN "$action" "$rcpt" < $actn
-	#rm -f $cmd
-    fi
+    note " * Mailman command piped directly to mailman"
+    $MAILMAN_BIN "$action" "$list"
 fi
 
 true
