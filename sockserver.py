@@ -116,8 +116,8 @@ import syslog
 
 __author__   = "Frank J. Tobin, ftobin@neverending.org"
 # if you update the version here bump the setup.py too!
-__version__  = "0.4.0.p1"
-__revision__ = "$Id: readyexec.py,v 1.28 2002/10/10 01:44:22 ftobin Exp $"
+__version__  = "0.4.0.p3"
+__revision__ = "" # Was: $Id: readyexec.py,v 1.28 2002/10/10 01:44:22 ftobin Exp $
 
 stds = ('stdin', 'stdout', 'stderr')
 
@@ -183,7 +183,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         try:
             op = self.read_string()
         except TimeoutError, e:
-            err(e)
+            self.output.err(e)
             return
 
         signal.alarm(0)
@@ -218,7 +218,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         try:
             self.tell_exit(status >> 8)
         except TimeoutError, e:
-            err(e)
+            self.output.err(e)
             return
 
     def handle_conduit_as_subchild(self):
@@ -243,7 +243,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
             
             self.request.shutdown(0)
         except TimeoutError, e:
-            err(e)
+            self.output.err(e)
             raise SystemExit(4)
         signal.alarm(0)
 
@@ -263,7 +263,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 for s in std_base, std:
                     setattr(sys, s, newfile)
         except TimeoutError, e:
-            err(e)
+            self.output.err(e)
             raise SystemExit(4)
         signal.alarm(0)
         
@@ -272,7 +272,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         try:
             apply(self.to_run)
         except TimeoutError, e:
-            err(e)
+            self.output.err(e)
             raise SystemExit(4)
         finally:
             signal.signal(signal.SIGALRM, flush_timeout_handler)
@@ -281,7 +281,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 for std in sys.stdout, sys.stderr:
                     std.flush()
             except TimeoutError, e:
-                err(e)
+                self.output.err(e)
                 raise SystemExit(4)
         signal.alarm(0)
 
@@ -515,25 +515,25 @@ def read_uint(f, maxdigits=4):
 
 def socket_read_timeout_handler(signum, frame):
     msg = "Timeout waiting for negotiation on socket"
-    err(msg)
+    syslog.syslog(msg)
     raise TimeoutError(msg)
 
 def socket_write_timeout_handler(signum, frame):
     msg = "Timeout waiting for socket write to complete"
-    err(msg)
+    syslog.syslog(msg)
     raise TimeoutError(msg)
 
 def fd_setup_timeout_handler(signum, frame):
     msg = "Timeout waiting for file descriptor setup"
-    err(msg)
+    syslog.syslog(msg)
     raise TimeoutError(msg)
 
 def handler_timeout_handler(signum, frame):
     msg = "Timeout waiting for handler to complete"
-    err(msg)
+    syslog.syslog(msg)
     raise TimeoutError(msg)
 
 def flush_timeout_handler(signum, frame):
     msg = "Timeout waiting for output streams to be flushed"
-    err(msg)
+    syslog.syslog(msg)
     raise TimeoutError(msg)

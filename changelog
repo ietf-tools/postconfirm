@@ -1,3 +1,10 @@
+postconfirmd (0.29)
+
+  * The timeout error messages in sockserver.py used a nonexistent function
+    and never made it out.  Fixed.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  01 Sep 2008 10:06:29 +0100
+
 postconfirmd (0.28)
 
   * Changed handler timeout to 300s
