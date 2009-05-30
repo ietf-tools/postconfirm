@@ -73,7 +73,7 @@ package: archive archive/$(tool)-$(version).tgz archive/$(tool)-v$(version)
 
 archive/$(tool)-$(version).tgz: $(sources) control
 	mkdir -p $(tool)-$(version)
-	cp -p $^ $(tool)-$(version)/
+	cp $^ $(tool)-$(version)/
 	tar czf $@ $(tool)-$(version)
 	rm -rf $(tool)-$(version)
 

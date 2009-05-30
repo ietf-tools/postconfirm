@@ -61,7 +61,7 @@ import StringIO
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-version = "0.33"
+version = "0.20"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
 
@@ -184,8 +184,12 @@ mkfile(conf.confirmlist)
 # set default values, if any
 socket_path = "/var/run/postconfirm/socket" % globals()
 mkdir(os.path.dirname(socket_path))
+sys.stderr.write("\n")
+sys.stderr.write("Will listen on unix domain socket '%s'\n" % socket_path)
 
-
+# ------------------------------------------------------------------------------
+# Set up the service
+service.setup(conf, args)
 
 # ------------------------------------------------------------------------------
 # Maybe daemonize
@@ -195,9 +199,9 @@ user, pwd, uid, gid, gecos, home, shell = list(pwd.getpwnam(conf.daemon_user))
 if "daemon_group" in conf:
     group, gpwd, gid, members = list(grp.getgrnam(conf.daemon_group))
 
-log("Postconfirm daemon v%s starting." % (version, ))
-sys.stderr.write("\nPostconfirm daemon v%s starting.\n" % (version, ))
 if not conf.foreground:
+    log("Postconfirm daemon starting.")
+    sys.stderr.write("Daemonizing...\n")
     pidfname = "/var/run/%s.pid" % program
 
     pidfile = open(pidfname, "w")
@@ -212,10 +216,7 @@ if not conf.foreground:
     pidfile.write("%s" % os.getpid())
     pidfile.close()
 else:
-    log("Not daemonizing.")
     sys.stderr.write("Not daemonizing.\n")
-
-sys.stderr.write("Will listen on unix domain socket '%s'\n" % socket_path)
 
 # ------------------------------------------------------------------------------
 # connect stdout and stderr to syslog, to catch messages, exceptions, traceback
@@ -223,10 +224,6 @@ log("Redirecting stdout and stderr to syslog")
 syslog.write = syslog.syslog
 sys.stdout = syslog
 sys.stderr = syslog
-
-# ------------------------------------------------------------------------------
-# Set up the service
-service.setup(conf, args)
 
 # ------------------------------------------------------------------------------
 # Start the server
