@@ -1,3 +1,9 @@
+postconfirmd (0.32)
+
+  * Added spam flag test for mailman commands in the wrapper
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  29 Sep 2008 9:23:49 +0200
+
 postconfirmd (0.31)
 
   * Removed duplicate log messages (when TimeoutError was raised).
@@ -5,20 +11,20 @@ postconfirmd (0.31)
   * Tweaked the wrapper script to not be sensitive to the domain name
     when comparing -owner@ and -bounces@ addresses.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  
+ -- Henrik Levkowetz <henrik@levkowetz.com>  17 Sep 2008 10:42:00 +0200
 
 postconfirmd (0.30)
 
   * Added functionality to handle blacklist regexes.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  01 Sep 2008 10:06:29 +0100
+ -- Henrik Levkowetz <henrik@levkowetz.com>  01 Sep 2008 10:06:29 +0200
 
 postconfirmd (0.29)
 
   * The timeout error messages in sockserver.py used a nonexistent function
     and never made it out.  Fixed.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  01 Sep 2008 10:06:29 +0100
+ -- Henrik Levkowetz <henrik@levkowetz.com>  01 Sep 2008 10:06:29 +0200
 
 postconfirmd (0.28)
 
