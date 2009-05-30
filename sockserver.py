@@ -160,7 +160,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
 
     pretend_arg0_fmt = '(readyexec %s)'
     negotiate_secs   = 10
-    handler_timeout  = 60
+    handler_timeout  = 300
 
     # We need the rbufsize to be unbuffered because
     # fdpass takes a socket file descriptor, and
@@ -178,11 +178,12 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                                                client_address, server)
 
     def handle(self):
-        signal.signal(signal.SIGALRM, socket_read_timeout)
+        signal.signal(signal.SIGALRM, socket_read_timeout_handler)
         signal.alarm(self.negotiate_secs)
         try:
             op = self.read_string()
-        except TimeoutError:
+        except TimeoutError, e:
+            err(e)
             return
 
         signal.alarm(0)
@@ -212,16 +213,17 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         self.output.debug("waiting on child")
         pid, status = os.waitpid(pid, 0)
 
-        signal.signal(signal.SIGALRM, socket_write_timeout)
+        signal.signal(signal.SIGALRM, socket_write_timeout_handler)
         signal.alarm(self.negotiate_secs)
         try:
             self.tell_exit(status >> 8)
-        except TimeoutError:
+        except TimeoutError, e:
+            err(e)
             return
 
     def handle_conduit_as_subchild(self):
         sys.argv = [self.pretend_arg0]
-        signal.signal(signal.SIGALRM, socket_read_timeout)
+        signal.signal(signal.SIGALRM, socket_read_timeout_handler)
         signal.alarm(self.negotiate_secs)
         new_std_fds = {}
         
@@ -240,11 +242,12 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 self.output.debug("fd for %s is %d" % (std, fd))
             
             self.request.shutdown(0)
-        except TimeoutError:
+        except TimeoutError, e:
+            err(e)
             raise SystemExit(4)
         signal.alarm(0)
 
-        signal.signal(signal.SIGALRM, fd_setup_timeout)
+        signal.signal(signal.SIGALRM, fd_setup_timeout_handler)
         signal.alarm(self.negotiate_secs)
         try:
             # want to iterate over these in a specific order
@@ -259,23 +262,26 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 newfile = os.fdopen(current_fno, current_file.mode)
                 for s in std_base, std:
                     setattr(sys, s, newfile)
-        except TimeoutError:
+        except TimeoutError, e:
+            err(e)
             raise SystemExit(4)
         signal.alarm(0)
         
-        signal.signal(signal.SIGALRM, handler_timeout)
+        signal.signal(signal.SIGALRM, handler_timeout_handler)
         signal.alarm(self.handler_timeout)
         try:
             apply(self.to_run)
-        except TimeoutError:
+        except TimeoutError, e:
+            err(e)
             raise SystemExit(4)
         finally:
-            signal.signal(signal.SIGALRM, handler_timeout)
+            signal.signal(signal.SIGALRM, flush_timeout_handler)
             signal.alarm(self.negotiate_secs)
             try:
                 for std in sys.stdout, sys.stderr:
                     std.flush()
-            except TimeoutError:
+            except TimeoutError, e:
+                err(e)
                 raise SystemExit(4)
         signal.alarm(0)
 
@@ -507,27 +513,27 @@ def read_uint(f, maxdigits=4):
     raise ProtocolError, "%s is getting to be too long" % repr(n)
 
 
-def socket_read_timeout(signum, frame):
-    msg = "timeout waiting for negotiation on socket"
+def socket_read_timeout_handler(signum, frame):
+    msg = "Timeout waiting for negotiation on socket"
     err(msg)
     raise TimeoutError(msg)
 
-def socket_write_timeout(signum, frame):
-    msg = "timeout waiting for socket write to complete"
+def socket_write_timeout_handler(signum, frame):
+    msg = "Timeout waiting for socket write to complete"
     err(msg)
     raise TimeoutError(msg)
 
-def fd_setup_timeout(signum, frame):
-    msg = "timeout waiting for file descriptor setup"
+def fd_setup_timeout_handler(signum, frame):
+    msg = "Timeout waiting for file descriptor setup"
     err(msg)
     raise TimeoutError(msg)
 
-def handler_timeout(signum, frame):
-    msg = "timeout waiting for handler to complete"
+def handler_timeout_handler(signum, frame):
+    msg = "Timeout waiting for handler to complete"
     err(msg)
     raise TimeoutError(msg)
 
-def flush_timeout(signum, frame):
-    msg = "timeout waiting for output streams to be flushed"
+def flush_timeout_handler(signum, frame):
+    msg = "Timeout waiting for output streams to be flushed"
     err(msg)
     raise TimeoutError(msg)
