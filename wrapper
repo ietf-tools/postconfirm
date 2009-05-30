@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.32"
+version="0.33"
 
 # --- Configuration variables ---
 
@@ -26,7 +26,7 @@ fi
 
 # Command line arguments
 action="$1"
-list="$2"
+rcpt="$2"
 domain="$3"
 
 [ "$domain" ] || domain=${RECIPIENT##*@}
@@ -68,7 +68,7 @@ RECV_LOCALPART=${RECIPIENT%@*}
 
 if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
     note "Mailman response piped directly to mailman"
-    $MAILMAN_BIN "$action" "$list"
+    $MAILMAN_BIN "$action" "$rcpt"
 elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" = filter ]; then
     # Using a temp file to hold the message isn't pretty, but we need to catch the exit
     # code from tmda_filter to decide whether to pipe stuff into mailman or not, and
@@ -91,10 +91,10 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
     if   [ $errnum == 0 ]; then
 	if [ "$action" = filter ]; then
 	    note "Input forwarded to MTA"
-	    $SENDMAIL_BIN $RECIPIENT < $out
+	    $SENDMAIL_BIN "$rcpt@$domain" < $out
 	else
 	    note "Input forwarded to mailman"
-	    $MAILMAN_BIN "$action" "$list" < $out
+	    $MAILMAN_BIN "$action" "$rcpt" < $out
 	fi
     elif [ $errnum == 1 ]; then
 	note "Error return $errnum from $FILTER_BIN -- not forwarding"
@@ -102,10 +102,10 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
     else
 	if [ "$action" = filter ]; then
 	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to MTA"
-	    $SENDMAIL_BIN $RECIPIENT < $tmp
+	    $SENDMAIL_BIN "$rcpt@$domain" < $tmp
 	else
 	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
-	    $MAILMAN_BIN "$action" "$list" < $tmp
+	    $MAILMAN_BIN "$action" "$rcpt" < $tmp
 	fi
     fi
     [ "$DEBUG" ] || rm -f $tmp $out $err
@@ -120,8 +120,8 @@ else
     else
 	actn=$(mktemp "$SPAM_STASH/actnXXXXXXXX")
 	mv $cmd $actn
-	echo "Command '$action': <$SENDER> -> $list  piped to mailman after spam check, saved as $actn"
-	$MAILMAN_BIN "$action" "$list" < $actn
+	echo "Command '$action': <$SENDER> -> $rcpt  piped to mailman after spam check, saved as $actn"
+	$MAILMAN_BIN "$action" "$rcpt" < $actn
 	#rm -f $cmd
     fi
 fi
