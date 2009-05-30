@@ -182,9 +182,8 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         signal.alarm(self.negotiate_secs)
         try:
             op = self.read_string()
-        except TimeoutError, e:
-            self.output.err(e)
-            return
+        except TimeoutError:
+            raise SystemExit(4)
 
         signal.alarm(0)
 
@@ -217,8 +216,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         signal.alarm(self.negotiate_secs)
         try:
             self.tell_exit(status >> 8)
-        except TimeoutError, e:
-            self.output.err(e)
+        except TimeoutError:
             return
 
     def handle_conduit_as_subchild(self):
@@ -242,8 +240,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 self.output.debug("fd for %s is %d" % (std, fd))
             
             self.request.shutdown(0)
-        except TimeoutError, e:
-            self.output.err(e)
+        except TimeoutError:
             raise SystemExit(4)
         signal.alarm(0)
 
@@ -262,8 +259,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 newfile = os.fdopen(current_fno, current_file.mode)
                 for s in std_base, std:
                     setattr(sys, s, newfile)
-        except TimeoutError, e:
-            self.output.err(e)
+        except TimeoutError:
             raise SystemExit(4)
         signal.alarm(0)
         
@@ -271,8 +267,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
         signal.alarm(self.handler_timeout)
         try:
             apply(self.to_run)
-        except TimeoutError, e:
-            self.output.err(e)
+        except TimeoutError:
             raise SystemExit(4)
         finally:
             signal.signal(signal.SIGALRM, flush_timeout_handler)
@@ -280,8 +275,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
             try:
                 for std in sys.stdout, sys.stderr:
                     std.flush()
-            except TimeoutError, e:
-                self.output.err(e)
+            except TimeoutError:
                 raise SystemExit(4)
         signal.alarm(0)
 

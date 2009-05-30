@@ -1,14 +1,14 @@
 #!/bin/bash
 
-version="0.20"
+version="0.31"
 
 # --- Configuration variables ---
 
-# TMDA's distributed tmda-filter executable:
+# the filter executable:
 FILTER_BIN=/usr/local/bin/postconfirmc
 
 # Mailman's distributed mailman executable:
-MAILMAN_BIN=/var/lib/mailman/mail/mailman
+MAILMAN_BIN=/usr/lib/mailman/mail/mailman
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
@@ -57,10 +57,10 @@ if [ "$DEBUG" ]; then
 fi
 unset HOME
 
-RECIPIENT=${RECIPIENT%@*}@$domain
+SEND_LOCALPART=${SENDER%@*}
+RECV_LOCALPART=${RECIPIENT%@*}
 
-# This test doesn't work if $domain contains a dash, but ietf.org doesn't ,;-) :
-if [ "${SENDER##*-}" = "bounces@$domain" -a "${RECIPIENT##*-}" = "owner@$domain" ]; then
+if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
     note " * Mailman response piped directly to mailman"
     $MAILMAN_BIN "$action" "$list"
 elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
