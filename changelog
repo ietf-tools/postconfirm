@@ -1,9 +1,17 @@
 postconfirmd (0.23)
 
   * Tweaked log messages so that where empty addresses can occur, they
-    are enclosed in <>.
+    are enclosed in <>.  Also some other log message tweaks.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  
+  * Added case normalization: white- and black-lists are normalized when
+    read, and sender addresses are normalized when compared with white-
+    and black-lists, but otherwise left untouched.  This means that the
+    confirmed file can still contain mixed-case addresses, for instance.
+
+  * Added a check for the sender to be somebody before doing the other
+    confirmation verification checks.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  02 Jul 2008 21:02:26 +0200
 
 postconfirmd (0.22)
 
