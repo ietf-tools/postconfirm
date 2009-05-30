@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.31"
+version="0.32"
 
 # --- Configuration variables ---
 
@@ -10,10 +10,13 @@ FILTER_BIN=/usr/local/bin/postconfirmc
 # Mailman's distributed mailman executable:
 MAILMAN_BIN=/usr/lib/mailman/mail/mailman
 
+# Where we store mailman commands identified as spam
+SPAM_STASH=/a/postconfirm/cache
+
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
    export RUNNING=$0
-   $0 "$@" 2>&1 | logger -i -t postconfirm
+   $0 "$@" 2>&1 | logger -i -t postconfirmw
    exit ${PIPESTATUS[0]}
 fi
 
@@ -61,7 +64,7 @@ SEND_LOCALPART=${SENDER%@*}
 RECV_LOCALPART=${RECIPIENT%@*}
 
 if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
-    note " * Mailman response piped directly to mailman"
+    note "Mailman response piped directly to mailman"
     $MAILMAN_BIN "$action" "$list"
 elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
     # Using a temp file to hold the message isn't pretty, but we need to catch the exit
@@ -73,7 +76,7 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
 
     cat - > $tmp
 
-    note " * Input piped to postconfirm"
+    note "Input piped to postconfirm"
     $FILTER_BIN < $tmp >$out 2>$err
     errnum=$?
     
@@ -83,19 +86,29 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
     fi
 
     if   [ $errnum == 0 ]; then
-	note " * Input forwarded to mailman"
+	note "Input forwarded to mailman"
 	$MAILMAN_BIN "$action" "$list" < $out
     elif [ $errnum == 1 ]; then
-	note " * Error return $errnum from $FILTER_BIN -- not forwarding"
+	note "Error return $errnum from $FILTER_BIN -- not forwarding"
 	[ "$DEBUG" ] && cat $err
     else
-	note " * $FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
+	echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
 	$MAILMAN_BIN "$action" "$list" < $tmp
     fi
     [ "$DEBUG" ] || rm -f $tmp $out $err
 else
-    note " * Mailman command piped directly to mailman"
-    $MAILMAN_BIN "$action" "$list"
+    cmd=$(mktemp -t postconfirm-cmd-XXXXX)
+    cat - > $cmd
+    spamflag=$(echo $(formail -c -x "X-Spam-Flag" < $cmd))
+    if [ "$spamflag" = "YES" ]; then
+	spam=$(mktemp "$SPAM_STASH/spamXXXXXXXX")
+	mv $cmd $spam
+	echo "Mailman command flagged as spam, saved as $spam"
+    else
+	echo "Mailman command piped to mailman after spam check "
+	$MAILMAN_BIN "$action" "$list" < $cmd
+	rm -f $cmd
+    fi
 fi
 
 true
