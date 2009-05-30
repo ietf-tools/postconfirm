@@ -48,8 +48,10 @@ conf = {}
 pid  = None
 whitelist = set([])
 blacklist = set([])
+whiteregex = None
 hashkey  = None
 
+# ------------------------------------------------------------------------------
 def read_whitelist(files):
     global whitelist
 
@@ -62,6 +64,30 @@ def read_whitelist(files):
             file.close()
             log("Read %s whitelist entries from %s\n" % (len(entries), file.name))
     log("Whitelist size: %s" % (len(whitelist)))
+
+# ------------------------------------------------------------------------------
+def read_regexes(files):
+    global whiteregex
+
+    regexlist = []
+    for file in files:
+        if os.path.exists(file):
+            file = open(file)
+            entries = file.read().split()
+            file.close()
+            for entry in entries:
+                try:
+                    dummy = re.compile(entry)
+                except Exception, e:
+                    log(syslog.LOG_ERR, "Invalid regex (not added to whitelist): %s" % (entry))
+                    log(syslog.LOG_ERR, e)
+                else:
+                    if not entry in regexlist:
+                        regexlist.append(entry)
+            log("Read %s regexlist entries from %s\n" % (len(entries), file.name))
+    log("Regexlist size: %s" % (len(regexlist)))
+    if regexlist:
+        whiteregex = "^((%s))$" % ")|(".join(regexlist)
 
 # ------------------------------------------------------------------------------
 def read_blacklist(files):
@@ -84,6 +110,12 @@ def sighup_handler(signum, frame):
         read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
     except:
         pass
+
+    try:
+        read_regexes(list(conf.whiteregex))
+    except:
+        pass
+
     try:
         read_blacklist(list(conf.blacklists))
     except:
@@ -105,6 +137,12 @@ def setup(configuration, files):
         read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
     except:
         pass
+
+    try:
+        read_regexes(list(conf.whiteregex))
+    except:
+        pass
+
     try:
         read_blacklist(list(conf.blacklists))
     except:
@@ -160,9 +198,9 @@ def request_confirmation(sender, recipient, cachefn):
         log(syslog.LOG_INFO, "Skipped confirmation from blacklisted <%s>" % (sender,))
         raise SystemExit(1)
 
-    log(syslog.LOG_INFO, "Requesting confirmation for %s from <%s>" % (filename, sender,))
-
     hash_output = make_hash(sender, recipient, filename)
+
+    log(syslog.LOG_INFO, "Requesting confirmation: <%s>, '%s', %s" % (sender, filename, hash_output))
 
     #print "Hash input: %s" % (hash_input, )
     #print "Hash output: %s" % (hash_output, )
@@ -206,8 +244,9 @@ def verify_confirmation(sender, recipient, msg):
         raise SystemExit(1)
 
     # Require that the hash matches
-    if not make_hash(sender, recipient, filename) == hash:
-        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(<%s>, %s, %s) != %s" % (sender, recipient, filename, hash))
+    good_hash = make_hash(sender, recipient, filename)
+    if not good_hash == hash:
+        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(<%s>, '%s', '%s') -> %s != %s" % (sender, recipient, filename, good_hash, hash))
         raise SystemExit(1)
 
     # We have a valid confirmation -- update the whitelist and the
@@ -248,7 +287,7 @@ def handle_unconfirmed_post(sender, recipient):
     msg = email.message_from_string(text)
     file.close()
 
-    if re.search(confirm_pat, msg["subject"]):
+    if re.search(confirm_pat, msg.get("subject", "")):
         verify_confirmation(sender, recipient, msg)
     else:
         request_confirmation(sender, recipient, cachefn)
@@ -290,7 +329,7 @@ def handler():
     sender  = os.environ["SENDER"].strip()
     recipient=os.environ["RECIPIENT"].strip()
 
-    if   sender.lower() in whitelist:
+    if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
         return forward_whitelisted_post(sender, recipient)
     else:
         return handle_unconfirmed_post(sender, recipient)
