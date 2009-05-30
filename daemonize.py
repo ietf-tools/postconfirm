@@ -24,7 +24,7 @@ __version__ = "0.2"
 # Standard Python modules.
 import os               # Miscellaneous OS interfaces.
 import sys              # System-specific parameters and functions.
-from syslog import syslog
+import syslog
 
 # Default daemon parameters.
 # File mode creation mask of the daemon.
@@ -125,6 +125,7 @@ def createDaemon():
       # removed.  It's therefore recommended that child branches of a fork()
       # and the parent branch(es) of a daemon use _exit().
       os._exit(0)	# Exit parent of the first child.
+
 
    # Close all open file descriptors.  This prevents the child from keeping
    # open any file descriptors inherited from the parent.  There is a variety

@@ -116,8 +116,8 @@ import syslog
 
 __author__   = "Frank J. Tobin, ftobin@neverending.org"
 # if you update the version here bump the setup.py too!
-__version__  = "0.4.0"
-__revision__ = "$Id: readyexec.py,v 1.28 2002/10/10 01:44:22 ftobin Exp $"
+__version__  = "0.4.0.p3"
+__revision__ = "" # Was: $Id: readyexec.py,v 1.28 2002/10/10 01:44:22 ftobin Exp $
 
 stds = ('stdin', 'stdout', 'stderr')
 
@@ -138,12 +138,14 @@ class Output(Singleton):
 
     quiet = 0
     do_debug = 0
-    syslog.openlog("sockserver", syslog.LOG_PID, syslog.LOG_DAEMON)
+    syslog.openlog("sockserver", syslog.LOG_PID)
     def __init__(self, quiet=None, debug=None):
         if quiet is not None: self.quiet = quiet
         if debug is not None: self.do_debug = debug
     def data(self, msg):
         print msg
+    def err(self, msg):
+        syslog.syslog('%s\n' % msg)
     def warn(self, msg):
         if not self.quiet: syslog.syslog('%s\n' % msg)
     def debug(self, msg):
@@ -158,6 +160,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
 
     pretend_arg0_fmt = '(readyexec %s)'
     negotiate_secs   = 10
+    handler_timeout  = 300
 
     # We need the rbufsize to be unbuffered because
     # fdpass takes a socket file descriptor, and
@@ -175,13 +178,12 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                                                client_address, server)
 
     def handle(self):
-        signal.signal(signal.SIGALRM, raise_TimeoutError)
+        signal.signal(signal.SIGALRM, socket_read_timeout_handler)
         signal.alarm(self.negotiate_secs)
         try:
             op = self.read_string()
         except TimeoutError:
-            self.output.warn("timeout waiting for negotiation on socket")
-            return
+            raise SystemExit(4)
 
         signal.alarm(0)
 
@@ -201,18 +203,25 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
             except SystemExit, e:
                 exit_code = int(str(e))
             except:
-                exit_code = 1
-                traceback.print_exc()
+                exit_code = 3
+                self.output.err(traceback.format_exc())
             else:
                 exit_code = 0
             os._exit(exit_code)
         
         self.output.debug("waiting on child")
-        self.tell_exit(os.waitpid(pid, 0)[1] >> 8)
+        pid, status = os.waitpid(pid, 0)
+
+        signal.signal(signal.SIGALRM, socket_write_timeout_handler)
+        signal.alarm(self.negotiate_secs)
+        try:
+            self.tell_exit(status >> 8)
+        except TimeoutError:
+            return
 
     def handle_conduit_as_subchild(self):
         sys.argv = [self.pretend_arg0]
-        signal.signal(signal.SIGALRM, raise_TimeoutError)
+        signal.signal(signal.SIGALRM, socket_read_timeout_handler)
         signal.alarm(self.negotiate_secs)
         new_std_fds = {}
         
@@ -232,28 +241,44 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
             
             self.request.shutdown(0)
         except TimeoutError:
-            self.output.warn("timeout waiting for negotiation on socket")
-            return
+            raise SystemExit(4)
         signal.alarm(0)
 
-        # want to iterate over these in a specific order
-        for std in stds:
-            std_base = '__%s__' % std
-            fd = new_std_fds[std]
-            current_file = getattr(sys, std_base)
-            if current_file.mode == 'w':
-                current_file.flush()
-            current_fno = current_file.fileno()
-            os.dup2(fd, current_fno)
-            newfile = os.fdopen(current_fno, current_file.mode)
-            for s in std_base, std:
-                setattr(sys, s, newfile)
-
+        signal.signal(signal.SIGALRM, fd_setup_timeout_handler)
+        signal.alarm(self.negotiate_secs)
+        try:
+            # want to iterate over these in a specific order
+            for std in stds:
+                std_base = '__%s__' % std
+                fd = new_std_fds[std]
+                current_file = getattr(sys, std_base)
+                if current_file.mode == 'w':
+                    current_file.flush()
+                current_fno = current_file.fileno()
+                os.dup2(fd, current_fno)
+                newfile = os.fdopen(current_fno, current_file.mode)
+                for s in std_base, std:
+                    setattr(sys, s, newfile)
+        except TimeoutError:
+            raise SystemExit(4)
+        signal.alarm(0)
+        
+        signal.signal(signal.SIGALRM, handler_timeout_handler)
+        signal.alarm(self.handler_timeout)
         try:
             apply(self.to_run)
+        except TimeoutError:
+            raise SystemExit(4)
         finally:
-            for std in sys.stdout, sys.stderr:
-                std.flush()
+            signal.signal(signal.SIGALRM, flush_timeout_handler)
+            signal.alarm(self.negotiate_secs)
+            try:
+                for std in sys.stdout, sys.stderr:
+                    std.flush()
+            except TimeoutError:
+                raise SystemExit(4)
+        signal.alarm(0)
+
 
     def handle_stop(self):
         self.stop_server()
@@ -339,6 +364,7 @@ class ReadyExec(SocketServer.ForkingMixIn,
         super(ReadyExec, self).__init__(cs_path, ReadyExecHandler)
 
     def handle_signal(self, sig, frame):
+        syslog.syslog("Terminating.")
         sys.exit()
     handle_signal = classmethod(handle_signal)
 
@@ -388,9 +414,9 @@ class ReadyExec(SocketServer.ForkingMixIn,
                 self.finish_request(request, address)
             except SystemExit, e:
                 exit_code = int(str(e))
-            except:
-                exit_code = 1
-                traceback.print_exc()
+            except Exception, e:
+                exit_code = 4
+                self.output.err(traceback.format_exc())
             else:
                 exit_code = 0
             os._exit(exit_code)
@@ -481,6 +507,27 @@ def read_uint(f, maxdigits=4):
     raise ProtocolError, "%s is getting to be too long" % repr(n)
 
 
-def raise_TimeoutError(signum, frame):
-    """Merely raises TimeoutError"""
-    raise TimeoutError
+def socket_read_timeout_handler(signum, frame):
+    msg = "Timeout waiting for negotiation on socket"
+    syslog.syslog(msg)
+    raise TimeoutError(msg)
+
+def socket_write_timeout_handler(signum, frame):
+    msg = "Timeout waiting for socket write to complete"
+    syslog.syslog(msg)
+    raise TimeoutError(msg)
+
+def fd_setup_timeout_handler(signum, frame):
+    msg = "Timeout waiting for file descriptor setup"
+    syslog.syslog(msg)
+    raise TimeoutError(msg)
+
+def handler_timeout_handler(signum, frame):
+    msg = "Timeout waiting for handler to complete"
+    syslog.syslog(msg)
+    raise TimeoutError(msg)
+
+def flush_timeout_handler(signum, frame):
+    msg = "Timeout waiting for output streams to be flushed"
+    syslog.syslog(msg)
+    raise TimeoutError(msg)
