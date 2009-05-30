@@ -1,3 +1,11 @@
+postconfirmd (0.33)
+
+  * Added a new action, 'filter', which forwards confirmed email to
+    /usr/lib/sendmail instead of to mailman.  For use with filtering
+    of alias addresses.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  31 May 2009 0:06:37
+
 postconfirmd (0.32)
 
   * Added spam flag test for mailman commands in the wrapper

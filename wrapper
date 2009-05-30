@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.32"
+version="0.33"
 
 # --- Configuration variables ---
 
@@ -9,6 +9,9 @@ FILTER_BIN=/usr/local/bin/postconfirmc
 
 # Mailman's distributed mailman executable:
 MAILMAN_BIN=/usr/lib/mailman/mail/mailman
+
+# Mail handler executable
+SENDMAIL_BIN=/usr/sbin/sendmail
 
 # Where we store mailman commands identified as spam
 SPAM_STASH=/a/postconfirm/cache
@@ -23,7 +26,7 @@ fi
 
 # Command line arguments
 action="$1"
-list="$2"
+rcpt="$2"
 domain="$3"
 
 [ "$domain" ] || domain=${RECIPIENT##*@}
@@ -65,14 +68,14 @@ RECV_LOCALPART=${RECIPIENT%@*}
 
 if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
     note "Mailman response piped directly to mailman"
-    $MAILMAN_BIN "$action" "$list"
-elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
+    $MAILMAN_BIN "$action" "$rcpt"
+elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" = filter ]; then
     # Using a temp file to hold the message isn't pretty, but we need to catch the exit
     # code from tmda_filter to decide whether to pipe stuff into mailman or not, and
     # neither $? or $PIPESTATUS[0] lets us do that inside the pipe itself.
-    tmp=$(mktemp -t postconfirm-tmp-XXXXX)
-    out=$(mktemp -t postconfirm-out-XXXXX)
-    err=$(mktemp -t postconfirm-err-XXXXX)
+    tmp=$(mktemp -t postconfirm-tmp-XXXXXX)
+    out=$(mktemp -t postconfirm-out-XXXXXX)
+    err=$(mktemp -t postconfirm-err-XXXXXX)
 
     cat - > $tmp
 
@@ -86,14 +89,24 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
     fi
 
     if   [ $errnum == 0 ]; then
-	note "Input forwarded to mailman"
-	$MAILMAN_BIN "$action" "$list" < $out
+	if [ "$action" = filter ]; then
+	    note "Input forwarded to MTA"
+	    $SENDMAIL_BIN "$rcpt@$domain" < $out
+	else
+	    note "Input forwarded to mailman"
+	    $MAILMAN_BIN "$action" "$rcpt" < $out
+	fi
     elif [ $errnum == 1 ]; then
 	note "Error return $errnum from $FILTER_BIN -- not forwarding"
 	[ "$DEBUG" ] && cat $err
     else
-	echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
-	$MAILMAN_BIN "$action" "$list" < $tmp
+	if [ "$action" = filter ]; then
+	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to MTA"
+	    $SENDMAIL_BIN "$rcpt@$domain" < $tmp
+	else
+	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
+	    $MAILMAN_BIN "$action" "$rcpt" < $tmp
+	fi
     fi
     [ "$DEBUG" ] || rm -f $tmp $out $err
 else
@@ -105,9 +118,11 @@ else
 	mv $cmd $spam
 	echo "Mailman command flagged as spam, saved as $spam"
     else
-	echo "Mailman command piped to mailman after spam check "
-	$MAILMAN_BIN "$action" "$list" < $cmd
-	rm -f $cmd
+	actn=$(mktemp "$SPAM_STASH/actnXXXXXXXX")
+	mv $cmd $actn
+	echo "Command '$action': <$SENDER> -> $rcpt  piped to mailman after spam check, saved as $actn"
+	$MAILMAN_BIN "$action" "$rcpt" < $actn
+	#rm -f $cmd
     fi
 fi
 
