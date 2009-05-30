@@ -126,7 +126,7 @@ build/%.pyht:	%.py.frag control template.shtml.pyht
 
 # ----------------------------------------------------------------------
 commit: diff
-	if [ "$(logentry)" ]; then sv commit -m"$(logentry)"; svn commit -m"$(logentry)"; else echo "Missing changelog entry!"; exit 1; fi
+	@if [ "$(logentry)" ]; then sv commit -m"$(logentry)"; svn commit -m"$(logentry)"; else echo "Missing changelog entry!"; exit 1; fi
 
 
 # ----------------------------------------------------------------------
