@@ -1,3 +1,10 @@
+postconfirmd (0.26)
+
+  * Added more timeouts to the daemon code, to catch the process
+    deadlocks or resource waits which have been observed.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  29 Aug 2008 2:55:00 +0200
+
 postconfirmd (0.25)
 
   * Added logging of time consumed in the daemon service handler.
