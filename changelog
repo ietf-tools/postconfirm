@@ -1,3 +1,12 @@
+postconfirmd (0.31)
+
+  * Removed duplicate log messages (when TimeoutError was raised).
+
+  * Tweaked the wrapper script to not be sensitive to the domain name
+    when comparing -owner@ and -bounces@ addresses.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  
+
 postconfirmd (0.30)
 
   * Added functionality to handle blacklist regexes.
