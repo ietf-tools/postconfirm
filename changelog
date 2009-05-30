@@ -1,3 +1,15 @@
+postconfirmd (0.25)
+
+  * Added logging of time consumed in the daemon service handler.
+
+  * Fixed a bug where extraction of components from the confirmation
+    string could fail.
+
+  * Changed mail sending to only log on SMTP exception, rather than
+    print traceback.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  11 Jul 2008 2:44:44 +0200
+
 postconfirmd (0.24)
 
   * Tweaked the log messages to give more information when a confirmation
