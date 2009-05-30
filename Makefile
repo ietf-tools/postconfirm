@@ -23,9 +23,6 @@ binaries = postconfirmc fdpass.so
 
 include Makefile.common
 
-prerequisites:
-	sudo apt-get install python-dev
-
 % : %.c
 	$(CC) $(CFLAGS) $(WFLAGS) -o $@ $(LDFLAGS) $<
 
@@ -35,7 +32,7 @@ prerequisites:
 %.so : %.o
 	$(CC) $(SOFLAGS) -o $@ $(LDFLAGS) $<
 
-install:: prerequisites postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
+install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
 	sudo install -o root    -d /etc/$(module) $(shared)/$(module)/
 	sudo install -o $(user) -d /var/run/$(module) /var/cache/$(module) $prefix/sbin/
 	#

@@ -68,21 +68,31 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
     # code from tmda_filter to decide whether to pipe stuff into mailman or not, and
     # neither $? or $PIPESTATUS[0] lets us do that inside the pipe itself.
     tmp=$(mktemp -t postconfirm-tmp-XXXXX)
+    out=$(mktemp -t postconfirm-out-XXXXX)
     err=$(mktemp -t postconfirm-err-XXXXX)
 
+    cat - > $tmp
+
     note " * Input piped to postconfirm"
-    if $FILTER_BIN >$tmp 2>$err; then
-	note " * Input forwarded to mailman"
-	$MAILMAN_BIN "$action" "$list" < $tmp
-	if [ "$DEBUG" ]; then
-	    echo "--- $(date +%Y-%m-%d_%H:%M): $* [$SENDER => $RECIPIENT] ---"	>> /tmp/postconfirm-debug.log
-	    head $tmp								>> /tmp/postconfirm-debug.log
-	fi
-    else
-	note " * Error return $? from $FILTER_BIN -- not forwarding"
-	[ "$DEBUG" ] && cat $err
+    $FILTER_BIN < $tmp >$out 2>$err
+    errnum=$?
+    
+    if [ "$DEBUG" ]; then
+	echo "--- $(date +%Y-%m-%d_%H:%M): $* [$SENDER => $RECIPIENT] ---"	>> /tmp/postconfirm-debug.log
+	head $out								>> /tmp/postconfirm-debug.log
     fi
-    rm -f $tmp $err
+
+    if   [ $errnum == 0 ]; then
+	note " * Input forwarded to mailman"
+	$MAILMAN_BIN "$action" "$list" < $out
+    elif [ $errnum == 1 ]; then
+	note " * Error return $errnum from $FILTER_BIN -- not forwarding"
+	[ "$DEBUG" ] && cat $err
+    else
+	note " * $FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
+	$MAILMAN_BIN "$action" "$list" < $tmp
+    fi
+    [ "$DEBUG" ] || rm -f $tmp $out $err
 else
     note " * Mailman command piped directly to mailman"
     $MAILMAN_BIN "$action" "$list"

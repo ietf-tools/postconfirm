@@ -19,7 +19,7 @@ def sendmail(sender, recipient, subject, text, conf={"smtp_host":"localhost",}, 
         server = smtplib.SMTP(conf["smtp_host"])
         server.sendmail(sender, recipient, message)
         server.quit()
-        log("Sent mail from '%s' to '%s' about '%s'" % (sender, recipient, subject))
+        #log("Sent mail from '%s' to '%s' about '%s'" % (sender, recipient, subject))
         return True
     except Exception, e:
         msg["To"] = "webmaster@" + os.environ.get("SERVER_NAME", "localhost")
