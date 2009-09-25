@@ -1,3 +1,13 @@
+postconfirmd (0.37)
+
+  * Tweaked the log message for dropped bulk messages
+
+  * Added detection of auto-reply messages which contain a valid
+    confirmation code in the body of the message, but not in the
+    subject line.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  25 Sep 2009 15:35:08 +0200
+
 postconfirmd (0.36)
 
   * Moved the bulk mail detection to after the whitelist check.  Some
@@ -5,7 +15,7 @@ postconfirmd (0.36)
 
   * Added logging of py module loading, indicating which file it comes from.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  25 Sep 2009 11:45:18
+ -- Henrik Levkowetz <henrik@levkowetz.com>  25 Sep 2009 11:47:24 +0200
 
 postconfirmd (0.35)
 

@@ -139,7 +139,7 @@ distinfo: $(tool)-$(version).tgz commit diff
 	sha256sum	$< | awk '{ printf "SHA256 (%s) = %s\n", $$2, $$1; }'	>> $@
 	wc -c		$< | awk '{ printf "SIZE (%s) = %s\n", $$2, $$1; }'	>> $@
 
-upload:	$(tool) $(webpages) $(tool)-$(version).tgz $(tool)-$(version).diff.html $(scripts) control distinfo 
+upload:: $(tool) $(webpages) $(tool)-$(version).tgz $(tool)-$(version).diff.html $(scripts) control distinfo 
 	rsync -avuz $^ /www/tools.ietf.org/tools/$(tool)/
 	toolpush /www/tools.ietf.org/tools/$(tool)/
 	toolsfeed control changelog /www/tools.ietf.org/tools/atomfeed.xml

@@ -65,3 +65,5 @@ install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
 	sudo ln -sf $(shared)/$(module)/wrapper $(shared)/$(module)/mailman
 	sudo /etc/init.d/postconfirmd restart
 
+upload::
+	scp -P 25377 $(tool)-$(version).tgz core3.amsl.com://usr/local/share/

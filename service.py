@@ -211,7 +211,7 @@ def pad(bytes):
     return bytes + "=" * ((4 - len(bytes) % 4 ) % 4)
 
 # ------------------------------------------------------------------------------
-def request_confirmation(sender, recipient, cachefn, headers):
+def request_confirmation(sender, recipient, cachefn, headers, text):
     """Generate a confirmation request, and send it to the poster for confirmation.
 
     The request subject line contains:
@@ -230,9 +230,22 @@ def request_confirmation(sender, recipient, cachefn, headers):
     precedence = headers.get("precedence", "")
     precedence_match = re.search(conf.bulk_regex, precedence)
     if precedence_match:
-        log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (precedence, sender,))
+        log(syslog.LOG_INFO, "Skipped confirmation for 'Precedence: %s' message from <%s>" % (precedence, sender,))
         # leave message in cache till cleaned out
         return 1
+
+    confirm_match = re.search(confirm_pat, text)
+    if confirm_match:
+        dummy, rcp, fn, hash = confirm_match.group(0).rsplit(":", 3)
+        if valid_hash(sender, rcp.lstrip(), fn, hash):
+            # We have a valid confirmation code inside a message which did
+            # not have a confirmation code in the subject line.  It's very
+            # likely that this means it's a non-delivery message for an
+            # earlier confirmation request.  Don't send a confirmation
+            # message for this message, but leave it in cache for possible
+            # manual handling
+            log(syslog.LOG_INFO, "Skipped confirmation for auto-reply, body contained valid '%s'" % (confirm_match.group(0),))
+            return 1
 
     if sender.lower() in set([ "", recipient.lower() ]):
         log(syslog.LOG_INFO, "Skipped requesting confirmation from <%s>" % (sender,))
@@ -278,16 +291,7 @@ def verify_confirmation(sender, recipient, msg):
     if sender == "":
         return 1
 
-    # Require a corresponding message in the cache:
-    cachefn = os.path.join(conf.mail_cache_dir, filename)
-    if not os.path.exists(cachefn):
-        log(syslog.LOG_WARNING, "No cached message for confirmation '%s'" % (filename))
-        return 1
-
-    # Require that the hash matches
-    good_hash = make_hash(sender, recipient, filename)
-    if not good_hash == hash:
-        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(<%s>, '%s', '%s') -> %s != %s" % (sender, recipient, filename, good_hash, hash))
+    if not valid_hash(sender, recipient, filename, hash):
         return 1
 
     # We have a valid confirmation -- update the whitelist and the
@@ -306,6 +310,7 @@ def verify_confirmation(sender, recipient, msg):
 
     # Output the cached message and delete the cache file
     log(syslog.LOG_INFO, "Forwarding cached message from <%s> to %s" % (sender, recipient, ))
+    cachefn = os.path.join(conf.mail_cache_dir, filename)
     file = open(cachefn)
     for line in file:
         sys.stdout.write(line)
@@ -313,6 +318,23 @@ def verify_confirmation(sender, recipient, msg):
     os.unlink(cachefn)
 
     return 0
+
+
+def valid_hash(sender, recipient, filename, hash):
+
+    # Require a corresponding message in the cache:
+    cachefn = os.path.join(conf.mail_cache_dir, filename)
+    if not os.path.exists(cachefn):
+        log(syslog.LOG_WARNING, "No cached message for confirmation '%s'" % (filename))
+        return False
+
+    # Require that the hash matches
+    good_hash = make_hash(sender, recipient, filename)
+    if not good_hash == hash:
+        log(syslog.LOG_WARNING, "Received hash didn't match -- make_hash(<%s>, '%s', '%s') -> %s != %s" % (sender, recipient, filename, good_hash, hash))
+        return False
+
+    return True
 
 # ------------------------------------------------------------------------------
 def forward_whitelisted_post(sender, recipient, cachefn, msg, all):
@@ -378,7 +400,7 @@ def handler():
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
             err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
         else:
-            err = request_confirmation(sender, recipient, cachefn, headers)
+            err = request_confirmation(sender, recipient, cachefn, headers, msg)
 
     t2 = time.time()
     log(syslog.LOG_INFO, "Wall time in handler: %.6f s." % (t2 - t1))
