@@ -1,3 +1,21 @@
+postconfirmd (0.36)
+
+  * Moved the bulk mail detection to after the whitelist check.  Some
+    OK mail is also bulk mail.
+
+  * Added logging of py module loading, indicating which file it comes from.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  25 Sep 2009 11:45:18
+
+postconfirmd (0.35)
+
+  * Tweaked the wrapper to make the 'filter' action work
+
+  * Added detection of bulk mail and a config file option to set
+    a regex for the Precedence: header to detect bulk mail.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  24 Sep 2009 17:07:41 +0200
+
 postconfirmd (0.33)
 
   * Added a new action, 'filter', which forwards confirmed email to

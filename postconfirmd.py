@@ -61,7 +61,7 @@ import StringIO
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-version = "0.33"
+version = "0.35"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
 
@@ -195,8 +195,8 @@ user, pwd, uid, gid, gecos, home, shell = list(pwd.getpwnam(conf.daemon_user))
 if "daemon_group" in conf:
     group, gpwd, gid, members = list(grp.getgrnam(conf.daemon_group))
 
-log("Postconfirm daemon v%s starting." % (version, ))
-sys.stderr.write("\nPostconfirm daemon v%s starting.\n" % (version, ))
+log("Postconfirm daemon v%s starting (%s)." % (version, __file__))
+sys.stderr.write("\nPostconfirm daemon v%s starting (%s).\n" % (version, __file__))
 if not conf.foreground:
     pidfname = "/var/run/%s.pid" % program
 

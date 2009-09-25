@@ -89,6 +89,10 @@ from types import StringType
 from tokenize import tokenprog
 import shlex
 
+import syslog
+syslog.openlog("postconfirmd", syslog.LOG_PID)
+syslog.syslog("Loading '%s' (%s)" % (__name__, __file__))
+
 class InterpolatorError(ValueError):
     def __init__(self, text, pos):
         self.text = text

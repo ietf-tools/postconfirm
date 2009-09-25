@@ -1,11 +1,20 @@
-Repository: postconfirm
-Version: 0.33
+Repository: http://svn.tools.ietf.org/svn/src/postconfirm/
+Version: 0.35
 Section: text
 Priority: optional
 Maintainer: Henrik Levkowetz <henrik@merlot.tools.ietf.org>
 Package: postconfirm
 Architecture: any
 Depends: 
-Ietf:
+Ietf: critical
 Url:
-Description: 
+Date: 2009-09-25 11:45:27
+Section: admin
+Description: Email confirmation system
+        Postconfirm requests and verifies one-time email sender confirmation.
+	It is intended as a front-end to mailing lists, and provides
+	funcitonality which is a subset of TMDA, but is adapted to high-volume
+	usage. Since the whitelist lookup is done by a long-running server
+	part, the overhead of doing a verification that a poster has a
+	confirmed address is much smaller than for TMDA, by a factor 1000 or
+	more in cpu load and a factor 20 or more in memory footprint.
