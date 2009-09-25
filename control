@@ -1,5 +1,5 @@
 Repository: http://svn.tools.ietf.org/svn/src/postconfirm/
-Version: 0.35
+Version: 0.36
 Section: text
 Priority: optional
 Maintainer: Henrik Levkowetz <henrik@merlot.tools.ietf.org>
