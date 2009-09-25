@@ -29,6 +29,9 @@ from email.MIMEText import MIMEText
 
 log = syslog.syslog
 
+syslog.openlog("postconfirmd", syslog.LOG_PID)
+log("Loading '%s' (%s)" % (__name__, __file__))
+
 confirm_fmt = "Confirm: %s:%s:%s"
 confirm_pat = "Confirm:[ \t\n\r]+.*:.*:.*"
 
@@ -208,7 +211,7 @@ def pad(bytes):
     return bytes + "=" * ((4 - len(bytes) % 4 ) % 4)
 
 # ------------------------------------------------------------------------------
-def request_confirmation(sender, recipient, cachefn, msg):
+def request_confirmation(sender, recipient, cachefn, headers):
     """Generate a confirmation request, and send it to the poster for confirmation.
 
     The request subject line contains:
@@ -223,6 +226,13 @@ def request_confirmation(sender, recipient, cachefn, msg):
     """
 
     filename = cachefn.split("/")[-1]
+
+    precedence = headers.get("precedence", "")
+    precedence_match = re.search(conf.bulk_regex, precedence)
+    if precedence_match:
+        log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (precedence, sender,))
+        # leave message in cache till cleaned out
+        return 1
 
     if sender.lower() in set([ "", recipient.lower() ]):
         log(syslog.LOG_INFO, "Skipped requesting confirmation from <%s>" % (sender,))
@@ -248,6 +258,7 @@ def request_confirmation(sender, recipient, cachefn, msg):
     subject = confirm_fmt % (recipient, filename, hash_output)
 
     template = filetext(conf.mail_template)
+    msg = headers                       # for the interpolator
     text = str(interpolate.Interpolator(template))
 
     sendmail(recipient, sender, subject, text, conf)
@@ -359,6 +370,7 @@ def handler():
     cachefn, msg, all = cache_mail()
 
     headers = email.parser.Parser().parsestr(msg, headersonly=True)
+
     if re.search(confirm_pat, headers.get("subject", "")):
         err =  verify_confirmation(sender, recipient, headers)
         os.unlink(cachefn)

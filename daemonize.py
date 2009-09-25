@@ -26,6 +26,9 @@ import os               # Miscellaneous OS interfaces.
 import sys              # System-specific parameters and functions.
 import syslog
 
+syslog.openlog("postconfirmd", syslog.LOG_PID)
+syslog.syslog("Loading '%s' (%s)" % (__name__, __file__))
+
 # Default daemon parameters.
 # File mode creation mask of the daemon.
 UMASK = 0

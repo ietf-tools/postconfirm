@@ -6,13 +6,13 @@
 tool    ?= $(shell basename $(PWD))
 version := $(shell ./$(tool) --version | awk '{print $$2}' )
 thisver := $(version)
-prevver := $(shell if [ -d ./archive ]; then ls ./archive/ | grep -v ".tgz" | grep -v "$(version)" | tail -n 1 | sed 's/.*$(tool)-v//'; else echo "0.00"; fi )
+prevver := $(shell if [ -d ./archive ]; then ls -d ./archive/$(tool)* | grep -v ".tgz" | grep -v "$(version)" | tail -n 1 | sed 's/.*$(tool)-v//'; else echo "0.00"; fi )
 
 language:= $(shell head -1 $(tool) | awk '{ sub("^.+/", "", $$1); print $$1; }')
 logentry := $(shell sed -n -r "/^$(tool) \($(version).*\)/,/^ -- /p" changelog | head -n -1 | sed -r 's/"/\\"/g' )
 
 # Sources
-sources	+= $(tool) copyright control.in changelog todo template.shtml.pyht Makefile Makefile.common
+sources	+= $(tool) copyright control.in changelog todo template.shtml.pyht Makefile ../Makefile.common
 
 # Webpages
 webpages += index.shtml code.shtml copyright.shtml changelog.shtml
@@ -80,8 +80,8 @@ archive/$(tool)-$(version).tgz: $(sources) control
 archive/$(tool)-v$(version): $(tool)
 	cp $< $@
 
-control: control.in $(tool)
-	 sed 's/^Version: .*/Version: $(version)/' $< > $@
+control: control.in $(tool) changelog
+	 sed -r -e 's/^Version:.*/Version: $(version)/' -e "s/^Date:.*/Date: $$(date +'%Y-%m-%d %H:%M:%S')/" $< > $@
 
 packagetest: archive/$(tool)-$(version).tgz
 	cd archive && tar xzf archive/$(tool)-$(version).tgz
@@ -115,7 +115,7 @@ build/index.html: $(tool).1.gz
 	man -l $< | head -n -1 | tail -n +2 | rst2html > $@
 
 build/changelog.html: changelog
-	cat $< | sed -r -e 's!$(tool) *\(([0-9.-]+)\)!\1 (`diff-\1 <http://tools.ietf.org/tools/$(tool)/$(tool)-\1.diff.html>`_)!' -e 's/^ --(.*)$$/    (\1)/' > $@.tmp
+	cat $< | sed -r -e 's!$(tool) *\(([0-9.-]+)\)!`\1 </tools/$(tool)/$(tool)-v\1>`_ (`diff-\1 </tools/$(tool)/$(tool)-\1.diff.html>`_)!' -e 's/^ --(.*)$$/    (\1)/' > $@.tmp
 	rst2html $@.tmp > $@
 
 # ----------------------------------------------------------------------
@@ -126,8 +126,10 @@ build/%.pyht:	%.py.frag control template.shtml.pyht
 
 # ----------------------------------------------------------------------
 commit: diff
-	@if [ "$(logentry)" ]; then sv commit -m"$(logentry)"; svn commit -m"$(logentry)"; else echo "Missing changelog entry!"; exit 1; fi
-
+	@if [ ! "$(logentry)" ]; then echo "Missing changelog entry!"; exit 1; fi
+	sed -r -i -e "1,/^ -- /s/([A-Za-z-]+ <[a-z0-9.-]+@[a-z0-9.-]+>  ).*$$/\1$$(date +'%d %b %Y %H:%M:%S %z')/" changelog
+	sv commit -m"$(logentry)"
+	svn commit -m"$(logentry)"
 
 # ----------------------------------------------------------------------
 distinfo: $(tool)-$(version).tgz commit diff
@@ -138,7 +140,10 @@ distinfo: $(tool)-$(version).tgz commit diff
 	wc -c		$< | awk '{ printf "SIZE (%s) = %s\n", $$2, $$1; }'	>> $@
 
 upload:	$(tool) $(webpages) $(tool)-$(version).tgz $(tool)-$(version).diff.html $(scripts) control distinfo 
-	rsync -avuz $^ shiraz:/www/tools.ietf.org/tools/$(tool)/
+	rsync -avuz $^ /www/tools.ietf.org/tools/$(tool)/
+	toolpush /www/tools.ietf.org/tools/$(tool)/
+	toolsfeed control changelog /www/tools.ietf.org/tools/atomfeed.xml
+	toolpush /www/tools.ietf.org/tools/atomfeed.xml
 
 install:: $(tool) $(tool).1.gz
 	sudo install $(tool) $(prefix)/bin

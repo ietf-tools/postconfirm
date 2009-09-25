@@ -121,6 +121,9 @@ __revision__ = "" # Was: $Id: readyexec.py,v 1.28 2002/10/10 01:44:22 ftobin Exp
 
 stds = ('stdin', 'stdout', 'stderr')
 
+syslog.openlog("postconfirmd", syslog.LOG_PID)
+syslog.syslog("Loading '%s' (%s)" % (__name__, __file__))
+
 class ProtocolError(Exception):
     pass
 

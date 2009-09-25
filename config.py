@@ -88,6 +88,10 @@ __status__  = "alpha"
 __version__ = "0.3.7"
 __date__    = "05 October 2007"
 
+import syslog
+syslog.openlog("postconfirmd", syslog.LOG_PID)
+syslog.syslog("Loading '%s' (%s)" % (__name__, __file__))
+
 from types import StringType, UnicodeType
 
 import codecs
