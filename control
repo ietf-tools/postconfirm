@@ -1,5 +1,5 @@
 Repository: http://svn.tools.ietf.org/svn/src/postconfirm/
-Version: 0.36
+Version: 0.37
 Section: text
 Priority: optional
 Maintainer: Henrik Levkowetz <henrik@merlot.tools.ietf.org>
@@ -8,7 +8,7 @@ Architecture: any
 Depends: 
 Ietf: critical
 Url:
-Date: 2009-09-25 11:45:27
+Date: 2009-09-25 15:37:13
 Section: admin
 Description: Email confirmation system
         Postconfirm requests and verifies one-time email sender confirmation.
