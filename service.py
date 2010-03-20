@@ -319,7 +319,7 @@ def verify_confirmation(sender, recipient, msg):
 
     return 0
 
-
+# ------------------------------------------------------------------------------
 def valid_hash(sender, recipient, filename, hash):
 
     # Require a corresponding message in the cache:
@@ -351,6 +351,12 @@ def forward_whitelisted_post(sender, recipient, cachefn, msg, all):
         cachefd.close()
     os.unlink(cachefn)
     return 0
+
+# ------------------------------------------------------------------------------
+def strip_batv(sender):
+    if "=" in sender and re.search("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=[^=]+@", sender):
+        log(syslog.LOG_INFO, "Stripping BATV prefix from local part of '%s'" % (sender))
+        return re.sub("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=", "", sender)
 
 # ------------------------------------------------------------------------------
 # Service handler
@@ -387,6 +393,7 @@ def handler():
             return 3
 
     sender  = os.environ["SENDER"].strip()
+    sender  = strip_batv(sender)
     recipient=os.environ["RECIPIENT"].strip()
 
     cachefn, msg, all = cache_mail()
