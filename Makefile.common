@@ -125,21 +125,21 @@ build/%.pyht:	%.py.frag control template.shtml.pyht
 
 
 # ----------------------------------------------------------------------
-commit: diff
+commit: diff distinfo
 	@if [ ! "$(logentry)" ]; then echo "Missing changelog entry!"; exit 1; fi
 	sed -r -i -e "1,/^ -- /s/([A-Za-z-]+ <[a-z0-9.-]+@[a-z0-9.-]+>  ).*$$/\1$$(date +'%d %b %Y %H:%M:%S %z')/" changelog
 	sv commit -m"$(logentry)"
-	svn commit -m"$(logentry)"
+	[ -d .svn/ ] && svn commit -m"$(logentry)" || true
 
 # ----------------------------------------------------------------------
-distinfo: $(tool)-$(version).tgz commit diff
+distinfo: $(tool)-$(version).tgz diff commit
 	[ -f $@ ] || touch $@
 	if grep "$<" $@; then echo "Version $(version) has already been uploaded"; exit 1; fi
 	md5sum		$< | awk '{ printf "MD5 (%s) = %s\n", $$2, $$1; }'	>> $@
 	sha256sum	$< | awk '{ printf "SHA256 (%s) = %s\n", $$2, $$1; }'	>> $@
 	wc -c		$< | awk '{ printf "SIZE (%s) = %s\n", $$2, $$1; }'	>> $@
 
-upload:: $(tool) $(webpages) $(tool)-$(version).tgz $(tool)-$(version).diff.html $(scripts) control distinfo 
+upload:: $(tool) $(webpages) $(tool)-$(version).tgz $(tool)-$(version).diff.html $(scripts) control distinfo
 	rsync -avuz $^ /www/tools.ietf.org/tools/$(tool)/
 	toolpush /www/tools.ietf.org/tools/$(tool)/
 	toolsfeed control changelog /www/tools.ietf.org/tools/atomfeed.xml
