@@ -1,3 +1,10 @@
+postconfirmd (0.39)
+
+  * Added support for the Archived-At: header field for the IETF MailArchive
+    utility
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  10 Feb 2014 21:28:27 +0100
+
 postconfirmd (0.38)
 
   * Added BATV (draft-levine-smtp-batv) support.

@@ -20,8 +20,8 @@ redirection.
    /etc/mailman/mm_cfg.py to reflect the directory you placed the script
    in.  ('make install' will install 'wrapper' in /usr/share/postconfirm,
    and install a link 'mailman' in the same directory.  If this suits you,
-   and you don't want to make any tweaks to 'wrapper', you can point
-   /etc/mailman/mm_cfg.py at /usr/share/postconfirm directly.
+   and you don't want to make any tweaks to 'wrapper', you can set
+   WRAPPER_DIR in /etc/mailman/mm_cfg.py to "/usr/share/postconfirm" directly.
 
 3. Edit the configuration variables of the wrapper script from 1. above so
    that the FILTER_BIN and MAILMAN_BIN variables reflect the correct paths for

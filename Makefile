@@ -1,5 +1,5 @@
 CFLAGS=
-OFLAGS=-pthread -fno-strict-aliasing -DNDEBUG -g -fwrapv -O2 -fPIC -I/usr/include/python2.5
+OFLAGS=-pthread -fno-strict-aliasing -DNDEBUG -g -fwrapv -O2 -fPIC -I/usr/include/python2.7
 WFLAGS=-Waggregate-return -Wall -Wcast-align -Wcast-qual -Wconversion -Werror -Wmissing-declarations -Wmissing-prototypes -Wnested-externs -Wpointer-arith -Wredundant-decls -Wstrict-prototypes -Wwrite-strings
 SOFLAGS=-pthread -shared -Wl,-O1 -Wl,-Bsymbolic-functions 
 
@@ -34,22 +34,21 @@ include Makefile.common
 	$(CC) $(SOFLAGS) -o $@ $(LDFLAGS) $<
 
 test: 
-	pyflakes *.py
-# 	sudo -u $(user) postconfirmc --stop || echo postconfirmd not running
-# 	sudo rm -fv /var/run/postconfirm/confirmed # no confirmed addresses
-# 	sudo -u $(user) postconfirmd -d
-# 	sleep 1
-# 	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< "From: henrik@levkowetz.com\nSubject: Hello $$(date)\n\nHello";	    code=$$?; echo Result: $$code; [ $$code == 1 ]
-# 	sudo -u $(user) SENDER=henrik-two@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< "From: henrik-two@levkowetz.com\nSubject: Hello $$(date)\n\nHello"; code=$$?; echo Result: $$code; [ $$code == 0 ]
+	sudo -u $(user) postconfirmc --stop || echo postconfirmd not running
+	sudo rm -fv /var/run/postconfirm/confirmed # no confirmed addresses
+	sudo -u $(user) postconfirmd
+	sleep 1
+	for msg in msg/*; do cat $$msg | formail -I "List-Id: <testlist.ietf.org>" | sudo -u $(user) SENDER=henrik@levkowetz.com     RECIPIENT=testlist@grenache.levkowetz.com postconfirmc; code=$$?; echo "Result: $$code"; [ $$code == 1 ]; done
+	cat testfile2.msg | formail -I "List-Id: <testlist.ietf.org>" | sudo -u $(user) SENDER=henrik-two@levkowetz.com RECIPIENT=testlist@grenache.levkowetz.com postconfirmc; code=$$?; echo Result: $$code; [ $$code == 0 ]
 # 	sleep 3
 # 	echo -e "\$$\nR\n~f\n.\n\nx\n" | sudo mail -N
 # 	sleep 3
-# 	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@shiraz.levkowetz.com postconfirmc <<< "From: henrik@levkowetz.com\nSubject: Hello $$(date)\n\nHello";	    code=$$?; echo Result: $$code; [ $$code == 0 ]
+# 	sudo -u $(user) SENDER=henrik@levkowetz.com RECIPIENT=testlist@grenache.levkowetz.com postconfirmc <<< "From: henrik@levkowetz.com\nSubject: Hello $$(date)\n\nHello";	    code=$$?; echo Result: $$code; [ $$code == 0 ]
 # 	sudo -u $(user) postconfirmc --stop
 
 install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
 	sudo install -o root    -d /etc/$(module) $(shared)/$(module)/
-	sudo install -o $(user) -d /var/run/$(module) /var/cache/$(module) $prefix/sbin/
+	sudo install -o $(user) -d /var/run/$(module) /var/cache/$(module)/mail /var/cache/$(module)/pending $prefix/sbin/
 	#
 	[ -f /etc/$(module)/postconfirm.conf ] || sudo install -o root postconfirm.conf /etc/$(module)/
 	[ -f /etc/$(module)/confirm.email.template ] || sudo install -o root confirm.email.template /etc/$(module)/

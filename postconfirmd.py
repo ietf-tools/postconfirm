@@ -57,13 +57,22 @@ import stat
 import getopt
 import config
 import StringIO
+import syslog
 
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-version = "0.38"
+__version__ = "0.39"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
+
+# ------------------------------------------------------------------------------
+# Set up logging
+
+syslog.openlog("postconfirmd", syslog.LOG_PID)
+log = syslog.syslog
+
+log("Postconfirm daemon v%s starting (%s)." % (__version__, __file__))
 
 # ------------------------------------------------------------------------------
 # Read config file
@@ -74,6 +83,9 @@ merger = config.ConfigMerger(lambda x, y, z: "overwrite")
 default = """
 foreground:     False
 debug:          False
+socket_path:    "/var/run/postconfirm/socket"
+archive_url_pattern: "http://mailarchive.ietf.org/arch/msg/%(list)s/%(hash)s"
+auto_submitted_regex:	"^auto-"
 """
 
 default = StringIO.StringIO(default)
@@ -85,6 +97,7 @@ for conffile in [progdir+"/postconfirm.conf",
                 os.path.expanduser("~/.postconfirmrc"),
             ]:
     if os.path.exists(conffile):
+        log("Reading configuration from %s" % conffile)
         merger.merge(conf, config.Config(conffile))
 
 # import pprint
@@ -125,8 +138,10 @@ for opt, value in opts:
     elif   opt in ["-h", "--help"]:     # Output this help, then exit
         print __doc__ % globals()
         sys.exit(1)
+    elif opt in ["-s", "--socket"]:     # Specify the socket path
+        conf.socket_path = value
     elif opt in ["-V", "--version"]:    # Output version, then exit
-        print program, version
+        print program, __version__
         sys.exit(0)
 
 
@@ -138,12 +153,6 @@ import daemonize
 import service
 import pwd
 import grp
-    
-# ------------------------------------------------------------------------------
-# Set up logging
-
-syslog.openlog("postconfirmd", syslog.LOG_PID)
-log = syslog.syslog
 
 # ------------------------------------------------------------------------------
 # Utility functions
@@ -171,6 +180,8 @@ assert(type(conf.whitelists) == config.Sequence)
 # ------------------------------------------------------------------------------
 # Create directories and do initialization, as needed:
 
+sys.stderr.write("\nPostconfirm daemon v%s starting (%s).\n" % (__version__, __file__))
+
 mkdir(conf.mail_cache_dir)
 
 if mkfile(conf.key_file):
@@ -180,10 +191,7 @@ if mkfile(conf.key_file):
 
 mkfile(conf.confirmlist)
 
-# ------------------------------------------------------------------------------
-# set default values, if any
-socket_path = "/var/run/postconfirm/socket" % globals()
-mkdir(os.path.dirname(socket_path))
+mkdir(os.path.dirname(conf.socket_path))
 
 
 
@@ -195,8 +203,6 @@ user, pwd, uid, gid, gecos, home, shell = list(pwd.getpwnam(conf.daemon_user))
 if "daemon_group" in conf:
     group, gpwd, gid, members = list(grp.getgrnam(conf.daemon_group))
 
-log("Postconfirm daemon v%s starting (%s)." % (version, __file__))
-sys.stderr.write("\nPostconfirm daemon v%s starting (%s).\n" % (version, __file__))
 if not conf.foreground:
     pidfname = "/var/run/%s.pid" % program
 
@@ -215,7 +221,7 @@ else:
     log("Not daemonizing.")
     sys.stderr.write("Not daemonizing.\n")
 
-sys.stderr.write("Will listen on unix domain socket '%s'\n" % socket_path)
+sys.stderr.write("Will listen on unix domain socket '%s'\n" % conf.socket_path)
 
 # ------------------------------------------------------------------------------
 # connect stdout and stderr to syslog, to catch messages, exceptions, traceback
@@ -231,9 +237,13 @@ service.setup(conf, args)
 # ------------------------------------------------------------------------------
 # Start the server
 
-server = sockserver.ReadyExec(service.handler, socket_path, debug=conf.debug)
+try:
+    server = sockserver.ReadyExec(service.handler, conf.socket_path, debug=conf.debug)
+except IOError as e:
+    log(" ** Tried to set up server to read from socket %s, but got an exception: '%e'" % (conf.socket_path, e))
+    raise
 
-os.chmod(socket_path, stat.S_IRWXU | stat.S_IRWXG )
+os.chmod(conf.socket_path, stat.S_IRWXU | stat.S_IRWXG )
 try:        
     server.serve_forever()
 finally:

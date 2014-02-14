@@ -207,7 +207,7 @@ class ReadyExecHandler(SocketServer.StreamRequestHandler, object):
                 exit_code = int(str(e))
             except:
                 exit_code = 3
-                self.output.err(traceback.format_exc())
+                self.output.err(traceback.format_exc().replace('\n','\\n'))
             else:
                 exit_code = 0
             os._exit(exit_code)
@@ -419,7 +419,7 @@ class ReadyExec(SocketServer.ForkingMixIn,
                 exit_code = int(str(e))
             except Exception, e:
                 exit_code = 4
-                self.output.err(traceback.format_exc())
+                self.output.err(traceback.format_exc().replace('\n','\\n'))
             else:
                 exit_code = 0
             os._exit(exit_code)

@@ -22,6 +22,7 @@
 
 #define debug fprintf
 #define SOCK_PATH	"/var/run/postconfirm/socket"
+#define SOCK_BUF_LEN	256
 #define MY_ARGC 1
 
 void error(const char *msg);
@@ -34,8 +35,8 @@ void send_args(FILE *stream, int argc, char **argv);
 void usage(void);
 void verify_expected(FILE *stream, const char *expected);
 
-void  write_netstring(FILE *stream, const void *ptr, unsigned len);
-char* read_netstring(FILE *stream, unsigned *len_ptr);
+void  write_netstring(FILE *stream, const void *ptr, size_t len);
+char* read_netstring(FILE *stream, size_t *len_ptr);
 void  write_netstring_nulled(FILE *stream, const char *ptr);
 
 void write_netint(FILE *stream, int len);
@@ -56,20 +57,30 @@ int main(int argc, char **argv)
 {
     int cs; /* control socket */
     short int send_stop;
+    char sock_path[SOCK_BUF_LEN];
+    int i;
+    
     FILE *csfile;
     
     debugf = DEBUG ? stderr : fopen("/dev/null", "w");
     
-    if (argc > 1 && strcmp("--stop", argv[1]) == 0)
-    {
-	send_stop = 1;
-    }
-    else
-    {
-	send_stop = 0;
+    // default values
+    send_stop = 0;
+    strncpy(sock_path, SOCK_PATH, SOCK_BUF_LEN);
+
+    for (i = 1; i < argc; i++) {
+	if (strcmp("--stop", argv[i]) == 0) { send_stop = 1; }
+	if (strcmp("--socket", argv[i]) == 0) {
+	    i++;
+	    if (i < argc) {
+		strncpy(sock_path, argv[i], SOCK_BUF_LEN);
+	    } else {
+		error("missing argument to --socket");
+	    }
+	}
     }
     
-    cs = myconnect(SOCK_PATH);
+    cs = myconnect(sock_path);
     
     csfile = fdopen(cs, "w+");
     if (!csfile) { error("fdopen of socket"); }
@@ -216,13 +227,13 @@ void write_netstring_nulled(FILE *stream, const char *ptr)
 
 
 /* netstrings: http://cr.yp.to/proto/netstrings.txt */
-void write_netstring(FILE *stream, const void *ptr, unsigned len)
+void write_netstring(FILE *stream, const void *ptr, size_t len)
 {
     char buff[64] = {0};
     
     snprintf(buff, sizeof(buff), "%s", (const char *)ptr);
     
-    if (fprintf(stream, "%u:", len) == 0) { error("fprintf"); }
+    if (fprintf(stream, "%ld:", len) == 0) { error("fprintf"); }
     if (fwrite(ptr, 1, len, stream) < 1)   { error("fwrite"); }
     if (fputc(',', stream) == EOF)         { error("fputc"); }
 }
@@ -256,7 +267,7 @@ int read_netint(FILE *stream)
 
 /* netstrings: http://cr.yp.to/proto/netstrings.txt */
 /* bonus: I null-terminate */
-char* read_netstring(FILE *stream, unsigned *len_ptr)
+char* read_netstring(FILE *stream, size_t *len_ptr)
 {
     char error_buf[256] = {0};
     char error_buf2[256] = {0};
@@ -264,7 +275,7 @@ char* read_netstring(FILE *stream, unsigned *len_ptr)
     int c;
     int num_read;
     
-    num_read = fscanf(stream, "%4u:", len_ptr);
+    num_read = fscanf(stream, "%4ld:", len_ptr);
     if (num_read < 1)
     {
 	if (num_read == EOF) { proto_error("EOF during netstring length"); }
@@ -287,7 +298,7 @@ char* read_netstring(FILE *stream, unsigned *len_ptr)
     if (c != ',')
     {
 	snprintf(error_buf, sizeof(error_buf),
-		 "netstring %s (length %u) incorrectly terminated: expected comma, got %c",
+		 "netstring %s (length %ld) incorrectly terminated: expected comma, got %c",
 		 buf, *len_ptr, c);
 	proto_error(error_buf);
     }
@@ -299,7 +310,7 @@ char* read_netstring(FILE *stream, unsigned *len_ptr)
 void verify_expected(FILE *stream, const char *expected)
 {
     char *got;
-    unsigned len;
+    size_t len;
     char buff[256] = {0}; /* meant for error messages */
     
     got = read_netstring(stream, &len);

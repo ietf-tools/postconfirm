@@ -88,7 +88,7 @@ static PyObject* recv_fd(PyObject *self, PyObject *args)
     char iov_base_buf[1] = {0};
 
     int  socket;
-    int  recv_bytes;
+    ssize_t  recv_bytes;
     
     /* ensure we get no args */
     if (!PyArg_ParseTuple(args, "i", &socket))
@@ -156,7 +156,7 @@ static PyObject* recv_fd(PyObject *self, PyObject *args)
     if (cmsg->cmsg_len != CMSG_LEN(sizeof(int)))
     {
 	return PyErr_Format(PyExc_RuntimeError,
-		 "received message with unexpected cmsg_len: expected %d, got %d",
+		 "received message with unexpected cmsg_len: expected %lu, got %ld",
 		 CMSG_LEN(sizeof(int)), cmsg->cmsg_len);
     }
 
