@@ -29,11 +29,12 @@ from email.MIMEText import MIMEText
 
 log = syslog.syslog
 
-syslog.openlog("postconfirmd", syslog.LOG_PID)
+syslog.openlog("postconfirmd", syslog.LOG_PID | syslog.LOG_USER)
 log("Loading '%s' (%s)" % (__name__, __file__))
 
 confirm_fmt = "Confirm: %s:%s:%s"
 confirm_pat = "Confirm:[ \t\n\r]+.*:.*:.*"
+timestamp_fmt = "%Y-%m-%dT%H:%M:%S"
 
 # ------------------------------------------------------------------------------
 def filetext(file):
@@ -81,7 +82,7 @@ def read_regexes(files):
             file.close()
             for entry in entries:
                 try:
-                    dummy = re.compile(entry)
+                    re.compile(entry)
                 except Exception, e:
                     log(syslog.LOG_ERR, "Invalid regex (not added to whitelist): %s" % (entry))
                     log(syslog.LOG_ERR, e)
@@ -182,20 +183,43 @@ def sendmail(sender, recipient, subject, text, conf={"smtp_host":"localhost",}, 
         log(repr(e))
 
 # ------------------------------------------------------------------------------
+def get_msgid(msg):
+    msgid = msg['Message-Id']
+    if not msgid:
+        msgid = msg['Resent-Message-Id']
+    if msgid:
+        msgid = msgid.strip('<>')
+    else:
+        msgid = email.utils.make_msgid('ARCHIVE')
+    return msgid
+
+
+# ------------------------------------------------------------------------------
 def cache_mail():
     seconds = base64.urlsafe_b64encode(struct.pack(">i",int(time.time()))).strip("=")
-    outfd, outfn = tempfile.mkstemp(seconds, "", conf.mail_cache_dir)
-    out = os.fdopen(outfd, "w+")
-    
-    msg = text = sys.stdin.read(65536)
+    outfd, outfn = tempfile.mkstemp("", seconds, conf.mail_cache_dir)
+
+    text = sys.stdin.read()
     all = True
-    while text:
+    out = os.fdopen(outfd, "w+")
+    if conf.archive_url_pattern:
+        # The following assumes that the 'List-Id' header field has been set
+        # properly in the wrapper before sending the message to postconfirmd:
+        msg = email.parser.Parser().parsestr(text, headersonly=True)
+        if msg['List-Id']:
+            list = msg['List-Id'].strip('<>').replace('.ietf.org', '')
+            msgid = get_msgid(msg)
+            sha = hashlib.sha1(msgid)
+            sha.update(list)
+            hash = base64.urlsafe_b64encode(sha.digest()).strip("=")
+            msg["Archived-At"] = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
+        out.write(msg.as_string(unixfrom=True))
+    else:
+        msg = text
         out.write(text)
-        text = sys.stdin.read(65536)
-        if text:
-            all = False
     out.close()
     return outfn, msg, all
+
 
 # ------------------------------------------------------------------------------
 def hash(bytes):
@@ -291,6 +315,10 @@ def verify_confirmation(sender, recipient, msg):
     if sender == "":
         return 1
 
+    # Require the sender to be different from the recipient
+    if sender == recipient:
+        return 1
+
     if not valid_hash(sender, recipient, filename, hash):
         return 1
 
@@ -311,11 +339,7 @@ def verify_confirmation(sender, recipient, msg):
     # Output the cached message and delete the cache file
     log(syslog.LOG_INFO, "Forwarding cached message from <%s> to %s" % (sender, recipient, ))
     cachefn = os.path.join(conf.mail_cache_dir, filename)
-    file = open(cachefn)
-    for line in file:
-        sys.stdout.write(line)
-    file.close()
-    os.unlink(cachefn)
+    forward_cached_post(cachefn)
 
     return 0
 
@@ -337,19 +361,23 @@ def valid_hash(sender, recipient, filename, hash):
     return True
 
 # ------------------------------------------------------------------------------
+def forward_cached_post(cachefn):
+    file = open(cachefn)
+    while True:
+        text = file.read(8192)
+        if not text:
+            break
+        sys.stdout.write(text)
+    file.close()
+    os.unlink(cachefn)
+
+# ------------------------------------------------------------------------------
 def forward_whitelisted_post(sender, recipient, cachefn, msg, all):
     log(syslog.LOG_DEBUG, "Forwarding from whitelisted <%s> to %s" % (sender, recipient))
     if all:
-        sys.stdout.write(msg)
+        sys.stdout.write(msg.as_string())
     else:
-        cachefd = open(cachefn)
-        while True:
-            text = cachefd.read(8192)
-            if not text:
-                break
-            sys.stdout.write(text)
-        cachefd.close()
-    os.unlink(cachefn)
+        forward_cached_post(cachefn)
     return 0
 
 # ------------------------------------------------------------------------------
@@ -357,6 +385,8 @@ def strip_batv(sender):
     if "=" in sender and re.search("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=[^=]+@", sender):
         log(syslog.LOG_INFO, "Stripping BATV prefix from local part of '%s'" % (sender))
         return re.sub("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=", "", sender)
+    else:
+        return sender
 
 # ------------------------------------------------------------------------------
 # Service handler
@@ -398,16 +428,44 @@ def handler():
 
     cachefn, msg, all = cache_mail()
 
-    headers = email.parser.Parser().parsestr(msg, headersonly=True)
+    headers = msg
 
-    if re.search(confirm_pat, headers.get("subject", "")):
+    err = 0
+
+    precedence = headers.get("Precedence", "")
+    precedence_match = re.search(conf.bulk_regex, precedence)
+    auto_submitted = headers.get("Auto-Submitted", "")
+    auto_submitted_match = re.search(conf.auto_submitted_regex, auto_submitted)
+
+    if (headers.get_content_type() == "multipart/report"
+        and ("report-type","delivery-status") in headers.get_params([]) ):
+        log(syslog.LOG_INFO, "Received a delivery-status report: %s"  % cachefn)
+        err = 1
+    elif precedence_match:
+        if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
+        else:
+            log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (precedence, sender,))
+            err = 1
+        # return code for "don't forward"
+        # leaves message in cache till cleaned out        
+    elif auto_submitted_match:
+        if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
+        else:
+            log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (auto_submitted, sender,))
+            err = 1
+    elif re.search(confirm_pat, headers.get("subject", "")):
         err =  verify_confirmation(sender, recipient, headers)
-        os.unlink(cachefn)
+        if err:
+            log(syslog.LOG_INFO, "Message with failed confirmation saved as %s" % (cachefn))
+        else:
+            os.unlink(cachefn)
     else:
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
             err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
         else:
-            err = request_confirmation(sender, recipient, cachefn, headers, msg)
+            err = request_confirmation(sender, recipient, cachefn, headers, msg.get_payload())
 
     t2 = time.time()
     log(syslog.LOG_INFO, "Wall time in handler: %.6f s." % (t2 - t1))

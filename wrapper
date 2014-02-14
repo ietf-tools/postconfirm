@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.37"
+version="0.39"
 
 # --- Configuration variables ---
 
@@ -10,14 +10,8 @@ FILTER_BIN=/usr/local/bin/postconfirmc
 # Mailman's distributed mailman executable:
 MAILMAN_BIN=/usr/lib/mailman/mail/mailman
 
-# Mail handler executable
-SENDMAIL_BIN=/usr/sbin/sendmail
-
 # Where we store mailman commands identified as spam
 SPAM_STASH=/a/postconfirm/cache
-
-# Where we put the temporary files.  Used by 'mktemp'.
-TMPDIR=/a/postconfirm/tmp
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
@@ -29,7 +23,7 @@ fi
 # Command line arguments
 action="$1"
 dest="$2"
-domain="$3"	# not used
+domain="$3"
 
 # Debug switch
 DEBUG=""
@@ -63,7 +57,6 @@ if [ "$DEBUG" ]; then
 fi
 unset HOME
 
-[ -d $TMPDIR ] || mkdir -p $TMPDIR
 [ -d $SPAM_STASH ] || mkdir -p $SPAM_STASH
 
 SEND_LOCALPART=${SENDER%@*}
@@ -72,7 +65,7 @@ RECV_LOCALPART=${RECIPIENT%@*}
 if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
     note "Mailman response piped directly to mailman"
     $MAILMAN_BIN "$action" "$dest"
-elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" = filter ]; then
+elif [ "$action" = post -o "$action" = owner -o "$action" = admin ]; then
     # Using a temp file to hold the message isn't pretty, but we need to catch the exit
     # code from tmda_filter to decide whether to pipe stuff into mailman or not, and
     # neither $? or $PIPESTATUS[0] lets us do that inside the pipe itself.
@@ -80,7 +73,9 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
     out=$(mktemp -t postconfirm-out-XXXXXX)
     err=$(mktemp -t postconfirm-err-XXXXXX)
 
-    cat - > $tmp
+    # Add List-Id: so that we're able to calculate the Archived-At: header later.
+    # This will be overwritten by Mailman during its processing.
+    cat - | formail -I "List-ID: <$dest.ietf.org>" > $tmp
 
     note "Input piped to postconfirm"
     $FILTER_BIN < $tmp >$out 2>$err
@@ -92,26 +87,16 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
     fi
 
     if   [ $errnum == 0 ]; then
-	if [ "$action" = filter ]; then
-	    note "Input forwarded to MTA"
-	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $out
-	else
-	    note "Input forwarded to mailman"
-	    $MAILMAN_BIN "$action" "$dest" < $out
-	fi
+	note "Input forwarded to mailman"
+	$MAILMAN_BIN "$action" "$dest" < $out
     elif [ $errnum == 1 ]; then
 	note "Error return $errnum from $FILTER_BIN -- not forwarding"
 	[ "$DEBUG" ] && cat $err
     else
-	if [ "$action" = filter ]; then
-	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to MTA"
-	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $tmp
-	else
-	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
-	    $MAILMAN_BIN "$action" "$dest" < $tmp
-	fi
+	echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
+	$MAILMAN_BIN "$action" "$dest" < $tmp
     fi
-    #[ "$DEBUG" ] || rm -f $tmp $out $err
+    [ "$DEBUG" ] || rm -f $tmp $out $err
 else
     cmd=$(mktemp -t postconfirm-cmd-XXXXX)
     cat - > $cmd
