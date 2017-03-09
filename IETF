@@ -1,0 +1,66 @@
+================================================================================
+	  The 'Postconfirm' Mailing List Poster Confirmation Daemon
+================================================================================
+
+
+Postconfirm was designed to be a less resource-intensive replacement for
+certain uses of TMDA, in particular for the purpose of sitting in front of a
+group of mailing lists and verify or request a first-time posting confirmation
+of the poster's envelope-from address.
+
+It provides functonality which is a subset of TMDA, but is adapted to
+high-volume usage and does not have anywhere near all the bells and whistles
+which TMDA has. On the other hand, since the whitelist lookup is done by a
+long-running server part, the overhead of doing a verification that a poster
+has a confirmed address is much smaller than for TMDA (on the order of 0.01
+seconds per lookup vs. 10-600 seconds per lookup for TMDA, and ~5 MB total
+memory usage vs. ~100 MB *per lookup* for TMDA)
+
+On the IETF Mail Server, it has been set up as follows:
+
+Email Routing
+-------------
+
+On receipt of an incoming email, it is first sent through a spam filter.  If
+it passes this, it is routed to a wrapper script which replaces (and
+eventually calls) Mailman's original binary, which takes action as follows:
+
+  * If the sender localpart ends with -bounces or the recipient localpart
+    ends in -owner, the email is forwarded directly to Mailman for bounce-
+    detection or forwarding to the list owner (so this can't be used to
+    bypass postconfirm for delivery to a list).
+
+  * Else if the action is 'post', 'owner', or 'admin', the email is checked
+    by postconfirm:
+   
+	- if the envelope-from is in a whitelist, the email is sent to Mailman
+	- else if the email is a returned confirmation, the envelope-from is
+	  whitelisted, and the original email is taken from cache and sent to
+	  Mailman
+	- else the email is cached by postconfirm, and a posting confirmation
+	  email is sent to the envelope-from address.
+
+  * Else the email is a mailman command, and
+
+	- if the email is flagged as spam, it's saved in a spam folder
+	- else it's sent to mailman as a command
+
+Whitelist Files
+---------------
+
+The daemon part reads its configuration and whitelist files on startup (and
+when receiving a SIGHUP).  There are multiple whitelist files, for different
+purposes:
+
+  * One whitelist file is re-generated nightly from all the subscriber
+    addresses to the IETF mailing lists hosted on the IETF Mail Server.
+    People with the same email envelope-from as From: header field doesn't
+    have to do anything in order to post.
+
+  * One whitelist file holds a list of people who have received a confirmation
+    request from postconfirm and replied to it, thus confirming their
+    envelope-from posting address
+
+  * One whitelist file holds a set of manually edited whitelist regular
+    expressions, in order to be able to efficiently whitelist groups of
+    addresses.
