@@ -50,6 +50,7 @@ def filetext(file):
 # Setup: read initial data before daemonizing.
 
 conf = {}
+listinfo = {}
 pid  = None
 whitelist = set([])
 blacklist = set([])
@@ -112,9 +113,26 @@ def read_blacklist(files):
     log("Blacklist size: %s" % (len(blacklist)))
 
 # ------------------------------------------------------------------------------
+def read_listinfo():
+    global listinfo
+
+    listinfo = {}
+    try:
+        from Mailman import Utils
+        from Mailman import MailList
+        for name in Utils.list_names():
+            mmlist = MailList.MailList(name, lock=False)
+            listinfo[name] = {}
+            listinfo[name]['archive'] = bool(mmlist.archive)
+        log("Read %s mailman listinfo entries" % len(listinfo))
+    except Exception as e:
+        log("Exception when reading mailman listinfo:" % e)
+
+# ------------------------------------------------------------------------------
 def read_data():
     global whiteregex
     global blackregex
+    global listinfo
     
     t1 = time.time()
     try:
@@ -137,6 +155,11 @@ def read_data():
     except:
         pass
 
+    try:
+        read_listinfo()
+    except:
+        pass
+
     t2 = time.time()
     log(syslog.LOG_INFO, "Wall time for reading data: %.6f s." % (t2 - t1))    
 
@@ -152,6 +175,8 @@ def setup(configuration, files):
     global hashkey
 
     conf = configuration
+    if "mailman_dir" in conf:
+        sys.path.append(conf["mailman_dir"])
 
     pid = os.getpid()
 
@@ -196,6 +221,8 @@ def get_msgid(msg):
 
 # ------------------------------------------------------------------------------
 def cache_mail():
+    global listinfo
+
     seconds = base64.urlsafe_b64encode(struct.pack(">i",int(time.time()))).strip("=")
     outfd, outfn = tempfile.mkstemp("", seconds, conf.mail_cache_dir)
 
@@ -207,12 +234,29 @@ def cache_mail():
         # properly in the wrapper before sending the message to postconfirmd:
         msg = email.parser.Parser().parsestr(text, headersonly=True)
         if msg['List-Id']:
-            list = msg['List-Id'].strip('<>').replace('.ietf.org', '')
-            msgid = get_msgid(msg)
-            sha = hashlib.sha1(msgid)
-            sha.update(list)
-            hash = base64.urlsafe_b64encode(sha.digest()).strip("=")
-            msg["Archived-At"] = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
+            from Mailman import MailList # This has to happen after we're configured
+            try:
+                list = re.search('<([^>]+)>', msg['List-Id']).group(1).replace('.ietf.org', '')
+            except Exception:
+                list = msg['List-Id'].strip('<>').replace('.ietf.org', '')
+            if not list in listinfo:
+                try:
+                    mmlist = MailList.MailList(list, lock=False)
+                    log("Mailman list archive setting for %s: %s" % (list, mmlist.archive))
+                except Exception as e:
+                    mmlist = None
+                    log("No mailman info for list %s: %s" % (list, e))
+                listinfo[list] = {}
+                listinfo[list]['archive'] = mmlist != None and bool(mmlist.archive)
+            if listinfo[list]['archive']:
+                msgid = get_msgid(msg)
+                sha = hashlib.sha1(msgid)
+                sha.update(list)
+                hash = base64.urlsafe_b64encode(sha.digest()).strip("=")
+                msg["Archived-At"] = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
+                log("Setting Archived-At: %s" % msg["Archived-At"])
+            else:
+                log("Listinfo[%s]['archive'] = %s" % (list, listinfo[list]['archive']))
         out.write(msg.as_string(unixfrom=True))
     else:
         msg = text

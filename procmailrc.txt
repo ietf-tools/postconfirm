@@ -1,0 +1,14 @@
+
+# Pipe the whole mail through postconfirm
+:0 hbfw
+| /var/local/bin/postconfirmc
+# Catch any error code
+EXITCODE=$?
+
+# If it was an error exit, drop the message if we sent a confirmation request,
+# which is indicated by EXITCODE == 1.  Other exit codes means postconfirmc
+# failed, and we should fall back to default delivery.
+:0 e
+* EXITCODE ?? ^1$
+DEFAULT=/dev/null
+

@@ -18,6 +18,50 @@ DESCRIPTION
         part, the overhead of doing a verification that a poster has a
         confirmed address is much smaller than for TMDA.
 
+        This is the sequence of actions that postconfirm goes through when
+        processing an incoming email message:
+
+        1. The mail is put in the cache directory.
+
+        2. If the message is a delivery-status report (content-type
+        multipart/report, report-type delivery-status) then this is
+        logged, and no further action is taken.
+
+        3. If the precedence matches the bulk_regex setting in the
+        configuration file, then:
+           
+           a. if the envelope sender is in the whitelist or the white_regex
+              list, then the message is forwarded directly.
+
+           b. if not, the receipt of a bulk message is logged, and no further
+              action is taken.
+
+        4. If the message has an auto-submitted header, and the value matches
+        the auto_submitted_regex in the configuration file, then:
+           
+           a. if the envelope sender is in the whitelist or the white_regex
+              list, then the message is forwarded directly.
+
+           b. if not, the receipt of a bulk message is logged, and no further
+              action is taken.
+
+        5. If the subject matches the regex for postconfirm's confirmation
+        email subject, the confirmation is processed, and then:
+           
+           a. if the confirmation is valid, the held message is forwarded,
+              and the confirmed address is added to the whitelist.
+
+           b. if not, the failed confirmation is logged, and the message
+              is saved.
+
+        6. If the envelope sender is in the whitelist or the white_regex list,
+        the message is forwarded.
+
+        7. If there was no match earlier, a confirmation request is sent out
+        for the message.
+
+
+
 %(options)s
 
 FILES
@@ -62,7 +106,7 @@ import syslog
 # ------------------------------------------------------------------------------
 # Misc. metadata
 
-__version__ = "0.39"
+__version__ = "0.40"
 program = os.path.basename(sys.argv[0])
 progdir = os.path.dirname(sys.argv[0])
 
@@ -86,6 +130,7 @@ debug:          False
 socket_path:    "/var/run/postconfirm/socket"
 archive_url_pattern: "http://mailarchive.ietf.org/arch/msg/%(list)s/%(hash)s"
 auto_submitted_regex:	"^auto-"
+mailman_dir:    "/usr/lib/mailman"
 """
 
 default = StringIO.StringIO(default)
@@ -122,7 +167,7 @@ if len(sys.argv) < 1:
     sys.exit(1)
 
 try:
-    opts, args = getopt.gnu_getopt(sys.argv[1:], "dfhsV", ["debug", "foreground", "help", "socket", "version", ])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], "dfhs:V", ["debug", "foreground", "help", "socket=", "version", ])
 except Exception, e:
     print "%s: %s" % (program, e)
     sys.exit(1)
@@ -225,10 +270,11 @@ sys.stderr.write("Will listen on unix domain socket '%s'\n" % conf.socket_path)
 
 # ------------------------------------------------------------------------------
 # connect stdout and stderr to syslog, to catch messages, exceptions, traceback
-log("Redirecting stdout and stderr to syslog")
-syslog.write = syslog.syslog
-sys.stdout = syslog
-sys.stderr = syslog
+if not conf.foreground:
+    log("Redirecting stdout and stderr to syslog")
+    syslog.write = syslog.syslog
+    sys.stdout = syslog
+    sys.stderr = syslog
 
 # ------------------------------------------------------------------------------
 # Set up the service
@@ -240,7 +286,7 @@ service.setup(conf, args)
 try:
     server = sockserver.ReadyExec(service.handler, conf.socket_path, debug=conf.debug)
 except IOError as e:
-    log(" ** Tried to set up server to read from socket %s, but got an exception: '%e'" % (conf.socket_path, e))
+    log(" ** Tried to set up server to read from socket %s, but got an exception: '%s'" % (conf.socket_path, e))
     raise
 
 os.chmod(conf.socket_path, stat.S_IRWXU | stat.S_IRWXG )

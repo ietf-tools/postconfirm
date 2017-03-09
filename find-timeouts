@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+import sys
+
+lines = sys.stdin.readlines()
+lines.reverse()
+
+pids = []
+msgs = {}
+for line in lines:
+    words = line.replace("[", " ").replace("]", " ")
+    m, d, h, host, prog, pid, msg = words.split(" ", 6)
+    if "TimeoutError" in line:
+        pids += [ pid ]
+        msgs[pid] = [ line ]
+    else:
+        if pid in pids:
+            msgs[pid] += [ line ]
+
+for pid in pids:
+    msgs[pid].reverse()
+    for msg in msgs[pid]:
+        print msg.rstrip()
+    print ""
+    
+        
+        
+	

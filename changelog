@@ -1,3 +1,21 @@
+postconfirmd (0.40)
+
+  * Added checking of the mailman list archive flag before adding the
+    Archived-At: header field.
+
+  * Added a mailman_dir config option, in order to be able to import
+    the python mailman libs even if not on the regular python path.
+
+  * Fixed the -s / --socket option, to make it take an argument as intended.
+
+  * Changed the handling of sys.stdout and sys.stderr when running in foreground
+    mode -- they should not go to syslog in that case.
+
+  * Added reading of mailman listinfo for all mailman lists on startup and
+    on receipt of SIGHUP.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  20 Jan 2017 10:36:45 +0100
+
 postconfirmd (0.39)
 
   * Added support for the Archived-At: header field for the IETF MailArchive
