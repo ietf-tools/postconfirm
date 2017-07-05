@@ -22,10 +22,15 @@ import struct
 import interpolate
 import email
 import email.parser
+import email.utils
 import hmac
 import signal
 import smtplib
+import dns.resolver
+import dns.rdatatype
 from email.MIMEText import MIMEText
+#from flufl import bounce
+from datetime import datetime as Datetime, timedelta as Timedelta
 
 log = syslog.syslog
 
@@ -35,6 +40,10 @@ log("Loading '%s' (%s)" % (__name__, __file__))
 confirm_fmt = "Confirm: %s:%s:%s"
 confirm_pat = "Confirm:[ \t\n\r]+.*:.*:.*"
 timestamp_fmt = "%Y-%m-%dT%H:%M:%S"
+
+def err(msg):
+    sys.stderr.write("Error: %s\n" % (msg, ))
+    log(syslog.LOG_ERR, msg)
 
 # ------------------------------------------------------------------------------
 def filetext(file):
@@ -54,6 +63,7 @@ listinfo = {}
 pid  = None
 whitelist = set([])
 blacklist = set([])
+#bouncelist = {}
 whiteregex = None
 blackregex = None
 hashkey  = None
@@ -85,8 +95,7 @@ def read_regexes(files):
                 try:
                     re.compile(entry)
                 except Exception, e:
-                    log(syslog.LOG_ERR, "Invalid regex (not added to whitelist): %s" % (entry))
-                    log(syslog.LOG_ERR, e)
+                    err("Invalid regex (not added to whitelist): %s\n  Exception: %s" % (entry, e))
                 else:
                     if not entry in regexlist:
                         regexlist.append(entry)
@@ -129,6 +138,37 @@ def read_listinfo():
         log("Exception when reading mailman listinfo:" % e)
 
 # ------------------------------------------------------------------------------
+# def read_bouncelist(file):
+#     global bouncelist
+# 
+#     if os.path.exists(file):
+#         with open(file) as file:
+#             entries = file.read().splitlines()
+#             tuples = [ e.split(None, 1) for e in entries ]
+#             bouncelist = dict([ (a,Datetime.strptime(t, timestamp_fmt)) for t,a in tuples ])
+#         log("Read %s bouncelist entries from %s\n" % (len(entries), file.name))
+#     log("Bouncelist size: %s" % (len(bouncelist)))
+
+# ------------------------------------------------------------------------------
+# def write_bouncelist(bouncelist):
+#     cutoff = Datetime.now() - Timedelta(hours=conf.remember_bounce_hours)
+#     with open(conf.bouncelist, "w") as file:
+#         for a, t in bouncelist.items():
+#             if t > cutoff:
+#                 file.write("%s %s\n" % (t.strftime(timestamp_fmt), a))
+
+# ------------------------------------------------------------------------------
+# def update_bouncelist(addresses):
+#     global bouncelist
+# 
+#     t = Datetime.now()
+#     for a in addresses:
+#         bouncelist[a.lower()] = t
+#     write_bouncelist(bouncelist)
+#     # Tell root daemon process to re-read the data files
+#     os.kill(pid, signal.SIGHUP)
+
+# ------------------------------------------------------------------------------
 def read_data():
     global whiteregex
     global blackregex
@@ -137,28 +177,34 @@ def read_data():
     t1 = time.time()
     try:
         read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
-    except:
-        pass
+    except Exception as e:
+        log("IOError: %s" % e)
 
     try:
         whiteregex = read_regexes(list(conf.whiteregex))
-    except:
-        pass
+    except Exception as e:
+        log("IOError: %s" % e)
 
     try:
         read_blacklist(list(conf.blacklists))
-    except:
-        pass
+    except Exception as e:
+        log("IOError: %s" % e)
 
     try:
         blackregex = read_regexes(list(conf.blackregex))
-    except:
-        pass
+    except Exception as e:
+        log("IOError: %s" % e)
 
     try:
         read_listinfo()
-    except:
-        pass
+    except Exception as e:
+        log("IOError: %s" % e)
+
+#     try:
+#         read_bouncelist(conf.bouncelist)
+#     except Exception as e:
+#         log("IOError: %s" % e)
+
 
     t2 = time.time()
     log(syslog.LOG_INFO, "Wall time for reading data: %.6f s." % (t2 - t1))    
@@ -229,10 +275,10 @@ def cache_mail():
     text = sys.stdin.read()
     all = True
     out = os.fdopen(outfd, "w+")
+    msg = email.message_from_string(text)
     if conf.archive_url_pattern:
         # The following assumes that the 'List-Id' header field has been set
         # properly in the wrapper before sending the message to postconfirmd:
-        msg = email.parser.Parser().parsestr(text, headersonly=True)
         if msg['List-Id']:
             from Mailman import MailList # This has to happen after we're configured
             try:
@@ -279,7 +325,7 @@ def pad(bytes):
     return bytes + "=" * ((4 - len(bytes) % 4 ) % 4)
 
 # ------------------------------------------------------------------------------
-def request_confirmation(sender, recipient, cachefn, headers, text):
+def request_confirmation(sender, recipient, cachefn, msg):
     """Generate a confirmation request, and send it to the poster for confirmation.
 
     The request subject line contains:
@@ -292,16 +338,20 @@ def request_confirmation(sender, recipient, cachefn, headers, text):
         <cachefn> is the tempfile.mkstmp basename
         <key> is binary
     """
-
+    #log('request_confirmation(%s, %s, %s, ...)' % (sender, recipient, cachefn, ))
     filename = cachefn.split("/")[-1]
 
-    precedence = headers.get("precedence", "")
+    precedence = msg.get("precedence", "")
     precedence_match = re.search(conf.bulk_regex, precedence)
     if precedence_match:
         log(syslog.LOG_INFO, "Skipped confirmation for 'Precedence: %s' message from <%s>" % (precedence, sender,))
         # leave message in cache till cleaned out
         return 1
 
+    body = msg.get_payload()
+    while isinstance(body, list):
+        body = body[0].get_payload()
+    text = body
     confirm_match = re.search(confirm_pat, text)
     if confirm_match:
         dummy, rcp, fn, hash = confirm_match.group(0).rsplit(":", 3)
@@ -325,6 +375,16 @@ def request_confirmation(sender, recipient, cachefn, headers, text):
         os.unlink(cachefn)
         return 1
 
+#     if sender.lower() in bouncelist:
+#         cutoff = Datetime.now() - Timedelta(hours=conf.remember_bounce_hours)        
+#         bouncetime = bouncelist[sender.lower()]
+#         if bouncetime > cutoff:
+#             log(syslog.LOG_INFO, "Skipped confirmation from bouncing <%s>" % (sender,))
+#             os.unlink(cachefn)
+#             return 1
+#         else:
+#             update_bouncelist([])
+            
     hash_output = make_hash(sender, recipient, filename)
 
     log(syslog.LOG_INFO, "Requesting confirmation: <%s> to %s, '%s', %s" % (sender, recipient, filename, hash_output))
@@ -339,8 +399,7 @@ def request_confirmation(sender, recipient, cachefn, headers, text):
     subject = confirm_fmt % (recipient, filename, hash_output)
 
     template = filetext(conf.mail_template)
-    msg = headers                       # for the interpolator
-    text = str(interpolate.Interpolator(template))
+    text = interpolate.interpolate(template, {'filename':filename, 'sender':sender, 'recipient':recipient, 'msg':msg, 'conf':conf})
 
     sendmail(recipient, sender, subject, text, conf)
 
@@ -433,22 +492,176 @@ def strip_batv(sender):
         return sender
 
 # ------------------------------------------------------------------------------
-# Service handler
+def parse_options():
+    import argparse
+    import textwrap
 
-def handler():
+    help = """
+    NAME
+      postconfirm - Mail confirmation system
+
+    ...  postconfirmd [options]
+
+    DESCRIPTION
+
+      postconfirm consists of postconfirmd, which is the long-running
+      (daemon) part, and postconfirmc, which is the client part of a
+      client-server program which handles email confirmations. It is
+      intended as a front-end to mailing lists. It provides
+      funcitonality which is a subset of TMDA, but is adapted to
+      high-volume usage and does not have anywhere near all the bells
+      and whistles which TMDA has. On the other hand, since the
+      whitelist lookup is done by the long-running server part, the
+      overhead of doing a verification that a poster has a confirmed
+      address is much smaller than for TMDA.
+
+      Early tests indicate that with a whitelist of 16000 entries a lookup
+      costs about 0.01 seconds and about ~5 Mbytes for the server daemon, in
+      contrast whith TMDA which cost between ~10s and ~600s and ~98 Mb *per
+      lookup* as it was set up in front of the IETF lists.
+
+    ACTIONS
+      confirm (the default action):
+
+      Somewhat simplified, the flow for regular mail is as follows:
+
+         mail agent
+             |
+             v
+         postconfirm/mailman wrapper [copy] -> cached in cache dir
+             |
+             v
+         postconfirmc <==> postconfirmd
+             |
+             v
+         postconfirm/mailman wrapper [white] -> Mailman
+           [grey]
+             |
+             v
+         (waiting for confirmation)
+
+      In the start of the flow above, a message comes in. If the envelope
+      From is in the lists known by postconfirmd, it is passed through the
+      mailman/ postconfirm wrapper, where postconfirmc is called to talk
+      with postconfirmd and get either an OK to pass the message to Mailman,
+      or cache it.
+
+      In more detail, this is the sequence of actions that postconfirm goes
+      through when processing an incoming email message:
+
+      1. The mail is put in the cache directory.
+
+      2. If the message is a delivery-status report (content-type
+         multipart/report, report-type delivery-status) then this is logged,
+         and no further action is taken.
+
+      3. If the precedence matches the bulk_regex setting in the
+         configuration file, then:
+
+         a. if the envelope sender is in the whitelist or the white_regex
+             list, then the message is forwarded directly.
+
+         b. if not, the receipt of a bulk message is logged, and no further
+             action is taken.
+
+      4. If the message has an auto-submitted header, and the value matches
+         the auto_submitted_regex in the configuration file, then:
+
+         a. if the envelope sender is in the whitelist or the white_regex
+            list, then the message is forwarded directly.
+
+         b. if not, the receipt of a bulk message is logged, and no further
+            action is taken.
+
+      5. If the subject matches the regex for postconfirm's confirmation
+         email subject, the confirmation is processed, and then:
+
+         a. if the confirmation is valid, the held message is forwarded,
+            and the confirmed address is added to the whitelist.
+
+         b. if not, the failed confirmation is logged, and the message
+            is saved.
+
+      6. If the envelope sender is in the whitelist or the white_regex list,
+         the message is forwarded.
+
+      7. If there was no match earlier, a confirmation request is sent out
+         for the message.
+
+      dmarc-rewrite:
+
+      For use with mailing lists, aliases, etc., where the presence of
+      strict dmarc rules will prevent acceptance of the list messages
+      unless rewriting is done.
+
+      dmarc-reverse:
+
+      The inverse operation of dmarc-rewrite. Undoes the rewrite, 
+      and replaces the rewritten address with the original address.
+
+            
+    OPTIONS...
+
+    FILES
+      postconfirmd reads its configuration from the following files (if
+      found), in the given order:
+
+          <bin-dir>/postconfirm.conf
+          /etc/postconfirm.conf
+          /etc/postconfirm/postconfirm.conf
+          ~/.postconfirmrc
+
+      where <bin-dir> is the directory where postconfirmd is installed.
+
+    AUTHOR
+      Written by Henrik Levkowetz, <henrik@merlot.tools.ietf.org>. Uses the
+      daemonize module from Chad J. Schroeder, from the Python Cookbook at
+      http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/278731, and
+      the readyexec module from Frank J. Tobin, available at
+      http://readyexec.sourceforge.net/.
+
+    COPYRIGHT
+      Copyright 2008-2017 Henrik Levkowetz
+
+      This program is free software; you can redistribute it and/or modify
+      it under the terms of the GNU General Public License as published by
+      the Free Software Foundation; either version 2 of the License, or (at
+      your option) any later version. There is NO WARRANTY; not even the
+      implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+      PURPOSE. See the GNU General Public License for more details.
+
+    """
+    _prolog, _middle, _epilog = textwrap.dedent(help.expandtabs()).split('...', 2)
+
+    class HelpFormatter(argparse.RawDescriptionHelpFormatter):
+        def _format_usage(self, usage, actions, groups, prefix):
+            if prefix is None or prefix == 'usage: ':
+                prefix = 'SYNOPSIS\n  '
+            return _prolog+super(HelpFormatter, self)._format_usage(usage, actions, groups, prefix)
+
+    parser = argparse.ArgumentParser("postconfirmc", description=_middle, epilog=_epilog,
+                                     formatter_class=HelpFormatter, add_help=False)
+
+    group = parser.add_argument_group(argparse.SUPPRESS)
+
+    group.add_argument('action', default='confirm', nargs='?', metavar='{ confirm | dmarc-rewrite | dmarc-reverse }',
+                                                        help="the action to take")
+    group.add_argument('-h', '--help', action='help',   help="show this help message and exit")
+    group.add_argument('--stop', action='store_true',   help="stop the postconfirmd daemon")
+    group.add_argument('--socket', metavar='SOCKET',    help="use the given SOCKET for client-daemon communication")
+
+    options = parser.parse_args()
+
+    return options
+
+# ------------------------------------------------------------------------------
+
+def confirm(sender, recipient):
     """ Lookup email sender in whitelist; forward or cache email pending confirmation.
 
         It is expected that the following environment variables set:
         SENDER   : Envelope MAIL FROM address
 	RECIPIENT: Envelope RCPT TO address
-	EXTENSION: The recipient address extension (after the extension
-                   separator character in local_part, usually '+' or '-')
-
-        If we know the extension character (and we do, since we only use
-        extensions for confirmation mail, and we generate the confirmation
-        address extension using the configured extension character) we could
-        easily find the extension ourselves.  However, we go with the above
-        for compatibility with TMDA.
 
         The service handler looks up the sender in the whitelist, and if found,
         the mail on stdin is passed out on stdout.  If not found, the mail is
@@ -459,32 +672,27 @@ def handler():
         cleans out the cache with desired intervals and cache retention time.
     """
 
-    t1 = time.time()
-
-    for var in ["SENDER", "RECIPIENT" ]:
-        if not var in os.environ:
-            log(syslog.LOG_ERR, "Environment variable '%s' not set -- can't process input" % (var))
-            return 3
-
-    sender  = os.environ["SENDER"].strip()
-    sender  = strip_batv(sender)
-    recipient=os.environ["RECIPIENT"].strip()
-
     cachefn, msg, all = cache_mail()
 
-    headers = msg
-
     err = 0
+    # With a return code of 0, the incoming message will be forwarded
+    # With a return code of 1, the incoming message will be left in cache until it's cleared out.
+    # All other return codes indicate postconfirmd failures, and the message will be passed through
 
-    precedence = headers.get("Precedence", "")
+    precedence = msg.get("Precedence", "")
     precedence_match = re.search(conf.bulk_regex, precedence)
-    auto_submitted = headers.get("Auto-Submitted", "")
+    auto_submitted = msg.get("Auto-Submitted", "")
     auto_submitted_match = re.search(conf.auto_submitted_regex, auto_submitted)
+#    bounced_addresses = bounce.scan_message(msg)
 
-    if (headers.get_content_type() == "multipart/report"
-        and ("report-type","delivery-status") in headers.get_params([]) ):
+    if (msg.get_content_type() == "multipart/report"
+        and ("report-type","delivery-status") in msg.get_params([]) ):
         log(syslog.LOG_INFO, "Received a delivery-status report: %s"  % cachefn)
         err = 1
+#     elif bounced_addresses:
+#         log(syslog.LOG_INFO, "Received permanent failure delivery status for: %s" % (str(bounced_addresses),))
+#         update_bouncelist(bounced_addresses)
+#         err = 1
     elif precedence_match:
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
             err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
@@ -499,8 +707,8 @@ def handler():
         else:
             log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (auto_submitted, sender,))
             err = 1
-    elif re.search(confirm_pat, headers.get("subject", "")):
-        err =  verify_confirmation(sender, recipient, headers)
+    elif re.search(confirm_pat, msg.get("subject", "")):
+        err =  verify_confirmation(sender, recipient, msg)
         if err:
             log(syslog.LOG_INFO, "Message with failed confirmation saved as %s" % (cachefn))
         else:
@@ -509,12 +717,204 @@ def handler():
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
             err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
         else:
-            err = request_confirmation(sender, recipient, cachefn, headers, msg.get_payload())
-
-    t2 = time.time()
-    log(syslog.LOG_INFO, "Wall time in handler: %.6f s." % (t2 - t1))
+            err = request_confirmation(sender, recipient, cachefn, msg, msg.get_payload())
 
     if err:
         raise SystemExit(err)
 
+# ----------------------------------------------------------------------
+# DMARC related
+#----------------------------------------------------------------------
+
+def get_dns_record(dom, rtype):
+    import debug
+    debug.debug = True
+    resolver = dns.resolver.Resolver()
+    resolver.lifetime = conf.dmarc.lifetime
+    resolver.timeout = conf.dmarc.timeout
+    try:
+        recs = resolver.query(dom, rtype)
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+        return None
+    except DNSException as error:
+        log('DNSException: Unable to resolve %s: %s', dom, error.__doc__)
+        return None
+    return recs
+
+
+def dmarc_reject_or_quarantine(domain, org=False):
+    # This takes a mailing list, an email address as in the From: header, the
+    # _dmarc host name for the domain in question, and a flag stating whether
+    # we should check the organizational domains.  It returns one of three
+    # values:
+    # * True if the DMARC policy is reject or quarantine;
+    # * False if is not;
+    # * A special sentinel if we should continue looking
+    dmarc_domain = '_dmarc.%s'%domain
+    policy = None
+    rrecs = get_dns_record(dmarc_domain, dns.rdatatype.TXT)
+    if rrecs == None:
+        return False
+    # Be as robust as possible in parsing the result.
+    results_by_name = {}
+    cnames = {}
+    # Check all the records returned by DNS.  Keep track of the CNAMEs for
+    # checking later on.  Ignore any other non-TXT records.
+    for rec in rrecs.response.answer:
+        if rec.rdtype == dns.rdatatype.CNAME:
+            cnames[rec.name.to_text()] = (rec.items[0].target.to_text())
+        if rec.rdtype != dns.rdatatype.TXT:
+            continue
+        result = ''.join([ record for record in rec.items[0].strings ])
+        name = rec.name.to_text()
+        results_by_name.setdefault(name, []).append(result)
+    #
+    want_names = set([dmarc_domain + '.'])
+    expands = list(want_names)
+    seen = set(expands)
+    while expands:
+        item = expands.pop(0)
+        if item in cnames:
+            if cnames[item] in seen:
+                # CNAME loop.
+                continue
+            expands.append(cnames[item])
+            seen.add(cnames[item])
+            want_names.add(cnames[item])
+            want_names.discard(item)
+    assert len(want_names) == 1, ('Error in CNAME processing for %s; want_names != 1.'%(dmarc_domain,))
+    for name in want_names:
+        if name not in results_by_name:
+            continue
+        dmarcs = [ record for record in results_by_name[name] if record.startswith('v=DMARC1;') ]
+        if len(dmarcs) == 0:
+            sys.stderr.write("no DMARC1 records for %s\n" % (policy, dmarc_domain))            
+            return None
+        if len(dmarcs) > 1:
+            log('RRset of TXT records for %s has %d v=DMARC1 entries; '
+                'testing them all',
+                dmarc_domain, len(dmarcs))
+        for entry in dmarcs:
+            match = re.search(r'\bsp=(\w*)\b', entry, re.IGNORECASE)
+            if org and match:
+                policy = match.group(1).lower()
+            else:
+                match = re.search(r'\bp=(\w*)\b', entry, re.IGNORECASE)
+                if match:
+                    policy = match.group(1).lower()
+                else:
+                    continue
+            if policy in ('reject', 'quarantine'):
+                return True
+    return False
     
+
+def dmarc_rewrite(sender, recipient):
+    from urllib import quote
+    import debug
+    debug.debug = True
+
+    text = sys.stdin.read()
+    msg = email.message_from_string(text)
+    from_field = msg["From"]
+    from_name, from_addr = email.utils.parseaddr(from_field)
+    if from_addr:
+        from_local, at, from_dom = from_addr.partition('@')
+        if at == '@' and dmarc_reject_or_quarantine(from_dom):
+            new_addr = '%s@%s' % (quote(from_addr), conf.dmarc.domain)
+            new_from = email.utils.formataddr((from_name, new_addr))
+            debug.say("Rewriting %s --> %s" % (from_field, new_from))
+            # do rewrite
+            msg['X-Original-From'] = msg['From']
+            del msg['From']
+            msg['From'] = new_from
+            sys.stdout.write(msg.as_string())
+            return
+    # This is the fallthrough action: just emit the message unchanged
+    sys.stdout.write(text)
+
+# ------------------------------------------------------------------------------
+def send_smtp(fromaddr, toaddrs, msg):
+    server = smtplib.SMTP(host=conf.dmarc.smtp.host, port=conf.dmarc.smtp.port)
+    #server.set_debuglevel(1)    
+    server.sendmail(fromaddr, toaddrs, msg)
+    server.quit()
+
+# ------------------------------------------------------------------------------
+
+def dmarc_reverse(sender, recipient):
+    import debug
+    debug.debug = True
+
+    text = sys.stdin.read()
+    msg = email.message_from_string(text)
+    changed = False
+    for field in [ 'To', 'Cc', ]:
+        addresses = msg.get_all(field)
+        reversed = []
+        dirty = False
+        for recipient in email.utils.getaddresses(addresses):
+            name, addr = email.utils.parseaddr(recipient)
+            if addr.endswith('@%s'%conf.dmarc.domain):
+                localpart, dom  = addr.rsplit('@', 1)
+                addr = unquote(localpart)
+                dirty = True
+            reversed.append( email.utils.formataddr((name, addr)) )
+        if dirty:
+            del msg[field]
+            for a in reversed:
+                msg[field] = a
+            changed = True
+    if changed:
+        send_smtp(msg['From'], reversed, msg.as_string())
+    else:
+        log(syslog.LOG_ERR, "Received a message for dmarc-reverse processing, but found no address to reverse")
+
+
+# ------------------------------------------------------------------------------
+# Service handler
+
+def handler():
+    import debug
+    debug.debug = True
+    try:
+        options = parse_options()
+
+        for var in ["SENDER", "RECIPIENT" ]:
+            if not var in os.environ:
+                log(syslog.LOG_ERR, "Environment variable '%s' not set -- can't process input" % (var))
+                return 3
+
+        t1 = time.time()
+
+        for var in ["SENDER", "RECIPIENT" ]:
+            if not var in os.environ:
+                log(syslog.LOG_ERR, "Environment variable '%s' not set -- can't process input" % (var))
+                return 3
+
+        sender  = os.environ["SENDER"].strip()
+        sender  = strip_batv(sender)
+        recipient=os.environ["RECIPIENT"].strip()
+
+        debug.show('sender')
+        debug.show('recipient')
+        debug.pprint('options')
+
+        if   options.action == 'confirm':
+            result = confirm(sender, recipient)
+        elif options.action == 'dmarc-rewrite':
+            result = dmarc_rewrite(sender, recipient)
+        elif options.action == 'dmarc-revert':
+            result = dmarc_reverse(sender, recipient)
+        else:
+            log(syslog.LOG_ERR, "Bad command: %s" % (options.action, ))
+            result = 3
+
+        t2 = time.time()
+        log(syslog.LOG_INFO, "Wall time in %s handler: %.6f s." % (options.action, t2 - t1))
+
+        return result
+
+    except Exception as e:
+        sys.stderr.write("Exception: %s\n" % e)
+        return 2
