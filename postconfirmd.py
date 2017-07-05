@@ -18,26 +18,54 @@ DESCRIPTION
         part, the overhead of doing a verification that a poster has a
         confirmed address is much smaller than for TMDA.
 
-        This is the sequence of actions that postconfirm goes through when
-        processing an incoming email message:
+        Early tests indicate that with a whitelist of 16000 entries a lookup
+        costs about 0.01 seconds and about ~5 Mbytes for the server daemon, in
+        contrast whith TMDA which cost between ~10s and ~600s and ~98 Mb *per
+        lookup* as it was set up in front of the IETF lists.
+
+        Somewhat simplified, the flow for regular mail is as follows:
+
+           mail agent
+               |
+               v
+           postconfirm/mailman wrapper [copy] -> cached in cache directory
+               |
+               v
+           postconfirmc <==> postconfirmd
+               |
+               v
+           postconfirm/mailman wrapper [white] -> Mailman
+             [grey]
+               |
+               v
+           (waiting for confirmation)
+
+        In the start of the flow above, a message comes in. If the envelope
+        From is in the lists known by postconfirmd, it is passed through the
+        mailman/ postconfirm wrapper, where postconfirmc is called to talk
+        with postconfirmd and get either an OK to pass the message to Mailman,
+        or cache it.
+        
+        In more detail, this is the sequence of actions that postconfirm goes
+        through when processing an incoming email message:
 
         1. The mail is put in the cache directory.
 
         2. If the message is a delivery-status report (content-type
-        multipart/report, report-type delivery-status) then this is
-        logged, and no further action is taken.
+           multipart/report, report-type delivery-status) then this is logged,
+           and no further action is taken.
 
         3. If the precedence matches the bulk_regex setting in the
-        configuration file, then:
+           configuration file, then:
            
            a. if the envelope sender is in the whitelist or the white_regex
-              list, then the message is forwarded directly.
+               list, then the message is forwarded directly.
 
            b. if not, the receipt of a bulk message is logged, and no further
-              action is taken.
+               action is taken.
 
         4. If the message has an auto-submitted header, and the value matches
-        the auto_submitted_regex in the configuration file, then:
+           the auto_submitted_regex in the configuration file, then:
            
            a. if the envelope sender is in the whitelist or the white_regex
               list, then the message is forwarded directly.
@@ -46,7 +74,7 @@ DESCRIPTION
               action is taken.
 
         5. If the subject matches the regex for postconfirm's confirmation
-        email subject, the confirmation is processed, and then:
+           email subject, the confirmation is processed, and then:
            
            a. if the confirmation is valid, the held message is forwarded,
               and the confirmed address is added to the whitelist.
@@ -55,11 +83,10 @@ DESCRIPTION
               is saved.
 
         6. If the envelope sender is in the whitelist or the white_regex list,
-        the message is forwarded.
+           the message is forwarded.
 
         7. If there was no match earlier, a confirmation request is sent out
-        for the message.
-
+           for the message.
 
 
 %(options)s
@@ -125,12 +152,28 @@ log("Postconfirm daemon v%s starting (%s)." % (__version__, __file__))
 merger = config.ConfigMerger(lambda x, y, z: "overwrite")
 
 default = """
-foreground:     False
-debug:          False
-socket_path:    "/var/run/postconfirm/socket"
+foreground:         False
+debug:              False
+socket_path:        "/var/run/postconfirm/socket"
 archive_url_pattern: "http://mailarchive.ietf.org/arch/msg/%(list)s/%(hash)s"
 auto_submitted_regex:	"^auto-"
-mailman_dir:    "/usr/lib/mailman"
+mailman_dir:        "/usr/lib/mailman"
+remember_bounce_hours: 12
+dmarc:
+{
+    domain:         "dmarc.ietf.org"
+    resolver:
+    {
+        # seconds
+        timeout: 3                      
+        lifetime: 5
+    }
+    smtp:
+    {
+        host: localhost
+        port: 25
+    }
+}
 """
 
 default = StringIO.StringIO(default)
@@ -235,6 +278,7 @@ if mkfile(conf.key_file):
     keyfile.close()
 
 mkfile(conf.confirmlist)
+#mkfile(conf.bouncelist)
 
 mkdir(os.path.dirname(conf.socket_path))
 
