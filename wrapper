@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.39"
+version="0.41.0"
 
 # --- Configuration variables ---
 
