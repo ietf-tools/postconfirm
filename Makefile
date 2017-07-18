@@ -34,12 +34,15 @@ include Makefile.common
 	$(CC) $(SOFLAGS) -o $@ $(LDFLAGS) $<
 
 test: 
+	logger -i -t "postconfirm" "test: mark 1"
 	sudo -u $(user) postconfirmc --stop || echo postconfirmd not running
 	sudo rm -fv /var/run/postconfirm/confirmed # no confirmed addresses
-	sudo -u $(user) postconfirmd
 	sleep 1
-	for msg in msg/*; do cat $$msg | formail -I "List-Id: <testlist.ietf.org>" | sudo -u $(user) SENDER=henrik@levkowetz.com     RECIPIENT=testlist@grenache.levkowetz.com postconfirmc; code=$$?; echo "Result: $$code"; [ $$code == 1 ]; done
+	sudo -u $(user) postconfirmd
+	logger -i -t "postconfirm" "test: mark 3"
+	for msg in msg/*; do from=$$(head -n 1 $$msg | awk '{print $$2}'); echo "From: $$from"; cat $$msg | formail -I "List-Id: <testlist.ietf.org>" | sudo -u $(user) SENDER="$$from"  RECIPIENT=testlist@grenache.levkowetz.com postconfirmc; code=$$?; echo "Result: $$code"; [ $$code == 1 ]; done
 	cat testfile2.msg | formail -I "List-Id: <testlist.ietf.org>" | sudo -u $(user) SENDER=henrik-two@levkowetz.com RECIPIENT=testlist@grenache.levkowetz.com postconfirmc; code=$$?; echo Result: $$code; [ $$code == 0 ]
+	logger -i -t "postconfirm" "test: mark 4"
 # 	sleep 3
 # 	echo -e "\$$\nR\n~f\n.\n\nx\n" | sudo mail -N
 # 	sleep 3
@@ -47,6 +50,7 @@ test:
 # 	sudo -u $(user) postconfirmc --stop
 
 install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
+	logger -i -t "postconfirm" "install: mark 1"
 	sudo install -o root    -d /etc/$(module) $(shared)/$(module)/
 	sudo install -o $(user) -d /var/run/$(module) /var/cache/$(module)/mail /var/cache/$(module)/pending $prefix/sbin/
 	#
@@ -62,7 +66,13 @@ install:: postconfirmc postconfirmd postconfirmd.py postconfirm.conf fdpass.so
 	sudo python -c "import compileall; compileall.compile_dir('$(shared)/$(module)/');"
 	sudo ln -sf $(shared)/$(module)/$(tool).py $(prefix)/sbin/$(tool)
 	sudo ln -sf $(shared)/$(module)/wrapper $(shared)/$(module)/mailman
-	sudo /etc/init.d/postconfirmd restart
+	logger -i -t "postconfirm" "install: mark 2"
+	sudo /etc/init.d/postconfirmd stop
+	logger -i -t "postconfirm" "install: mark 3"
+	sleep 1
+	logger -i -t "postconfirm" "install: mark 4"
+	sudo /etc/init.d/postconfirmd start
+	logger -i -t "postconfirm" "install: mark 5"
 
 upload::
 	scp -P 25377 $(tool)-$(version).tgz core3.amsl.com://usr/local/share/
