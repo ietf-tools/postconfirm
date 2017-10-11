@@ -15,3 +15,14 @@
 .*.swp
 .DS_store
 # Simulated Subversion default ignores end here
+/archive
+/attic
+/build
+/dist
+/env
+/hash.key
+/mod
+/msg
+/postconfirm.egg-info
+/prod
+/template.shtml.pyht

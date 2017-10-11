@@ -1,0 +1,25 @@
+include changelog
+include copyright
+include fdpass.c
+include IETF
+include mailman
+include Makefile
+include Makefile.common
+include postconfirmc.c
+include postconfirmc.c
+include README.rst
+include requirements.txt
+include setup.py
+include wrapper
+include postconfirmc.1
+include postconfirmd.1
+include postconfirm/config.py
+include postconfirm/daemonize.py
+include postconfirm/__init__.py
+include postconfirm/interpolate.py
+include postconfirm/postconfirmd.py
+include postconfirm/sendmail.py
+include postconfirm/service.py
+include postconfirm/SocketServer.py
+include postconfirm/sockserver.py
+
