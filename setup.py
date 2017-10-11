@@ -123,6 +123,8 @@ setup(
         Extension('fdpass', ['fdpass.c',]),
     ],
 
+    extra_files = extra_files,
+
     # What does your project relate to?
     keywords='Mailing list posting confirmation daemon',
 
