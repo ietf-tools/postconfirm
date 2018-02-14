@@ -5,7 +5,7 @@
 
 import re
 import os.path
-
+import sys
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.install import install
