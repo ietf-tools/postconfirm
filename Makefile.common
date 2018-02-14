@@ -47,13 +47,16 @@ $(tool)-v0.00:
 	touch archive/$@
 
 # ----------------------------------------------------------------------
-manpage: $(tool).1.gz
+manpage: $(tool).8.gz
 
 %.1:	%.1.txt
 	txt2man $< > $@
 
 %.1:	%
 	./$(tool) --help | txt2man -t "$(tool) 1" > $@
+
+%.8:	postconfirm/%.py
+	$< --help | txt2man -t "$(tool) 8" > $@
 
 %.gz:	%
 	gzip -f $< -c > $@

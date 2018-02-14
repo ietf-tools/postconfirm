@@ -1,4 +1,5 @@
 include changelog
+include confirm.email.template
 include copyright
 include fdpass.c
 include IETF
@@ -12,14 +13,14 @@ include requirements.txt
 include setup.py
 include wrapper
 include postconfirmc.1
-include postconfirmd.1
+include postconfirmd.8
+include postconfirm/__init__.py
 include postconfirm/config.py
 include postconfirm/daemonize.py
-include postconfirm/__init__.py
+include postconfirm/debug.py
 include postconfirm/interpolate.py
 include postconfirm/postconfirmd.py
 include postconfirm/sendmail.py
 include postconfirm/service.py
 include postconfirm/SocketServer.py
 include postconfirm/sockserver.py
-
