@@ -4,27 +4,89 @@
 # --------------------------------------------------
 
 import re
+import os.path
+
 
 from setuptools import setup, find_packages, Extension
+from setuptools.command.install import install
 from distutils.ccompiler import new_compiler
-
 from codecs import open
-from os import path
 
+CONF_FILE_DIR = '/etc/postconfirm/'
 
-here = path.abspath(path.dirname(__file__))
+def maybe_chown(path, uid, gid):
+    try:
+        os.chown(path, uid, gid)
+    except OSError:
+        pass
+
+def maybe_chmod(path, mode):
+    try:
+        os.chmod(path, mode)
+    except OSError:
+        pass
+
+class PostInstallCommand(install):
+    """Post-installation for installation mode."""
+    def run(self):
+        import config, pwd, grp, sys, stat
+
+        # -------------------------
+        # Run the base installation
+        install.run(self)
+
+        # -------------------------
+        # Post-install actions
+        # Get config
+        merger = config.ConfigMerger(lambda x, y, z: "overwrite")
+        conf = config.Config()
+        conf_file = os.path.join(CONF_FILE_DIR, 'postconfirm.conf')
+        for cf in [
+                    "/etc/postconfirm.conf",
+                    "/etc/postconfirm/postconfirm.conf",
+                    conf_file,
+                    os.path.expanduser("~/.postconfirmrc"),
+                ]:
+            if os.path.exists(cf):
+                merger.merge(conf, config.Config(cf))
+        # Get user and group we should execute as
+        user, pw, uid, gid, gecos, home, shell = list(pwd.getpwnam(conf.daemon_user))
+        if "daemon_group" in conf:
+            group, gpw, gid, members = list(grp.getgrnam(conf.daemon_group))
+        # Set correct file owner, group and mode
+        maybe_chown(conf_file, uid, gid)
+        if not os.path.exists(conf.key_file):
+            with open(conf.key_file, "wb") as k:
+                with open('/dev/random') as r:
+                    rand = r.read(128)
+                    k.write(rand)
+        maybe_chown(conf.key_file, uid, gid)
+        maybe_chmod(conf.key_file, 0o600)
+        postconfirmc = os.path.join(self.install_scripts, 'postconfirmc')
+        maybe_chown(postconfirmc, uid, gid)
+        maybe_chmod(postconfirmc, stat.S_ISUID|0o755 )
+
+here = os.path.abspath(os.path.dirname(__file__))
 
 # Get the long description from the README file
-with open(path.join(here, 'README.rst'), encoding='utf-8') as file:
+with open(os.path.join(here, 'README.rst'), encoding='utf-8') as file:
     long_description = file.read()
 
 # Get the requirements from the local requirements.txt file
-with open(path.join(here, 'requirements.txt'), encoding='utf-8') as file:
+with open(os.path.join(here, 'requirements.txt'), encoding='utf-8') as file:
     requirements = file.read().splitlines()
 
-# Get the requirements from the local requirements.txt file
-with open(path.join(here, 'MANIFEST.in'), encoding='utf-8') as file:
+# Get the requirements from the local manifest file
+with open(os.path.join(here, 'MANIFEST.in'), encoding='utf-8') as file:
     extra_files = [ l.split()[1] for l in file.read().splitlines() if l ]
+
+conf_files = []
+for fn in ['postconfirm.conf', 'confirm.email.template']:
+    if not os.path.exists(os.path.join(CONF_FILE_DIR, fn)):
+        # this will be added to setup(data_files=...) below, so use data_files
+        # semantics:
+        sys.stderr.write("Adding conf_file %s\n" % os.path.join(CONF_FILE_DIR, fn))
+        conf_files.append( (CONF_FILE_DIR, [ fn, ]) )
 
 def parse(changelog):
     ver_line = "^([a-z0-9+-]+) \(([^)]+)\)(.*?) *$"
@@ -161,9 +223,9 @@ setup(
     # need to place data files outside of your packages. See:
     # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa
     data_files=[
-        ('/usr/local/share/man/man1', ['postconfirmc.1',]),
-        ('/usr/local/share/man/man1', ['postconfirmd.1',]),
-    ],
+        ('/usr/share/man/man1', ['postconfirmc.1',]),
+        ('/usr/share/man/man8', ['postconfirmd.8',]),
+    ]+conf_files,
 
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
@@ -180,4 +242,8 @@ setup(
 
     # We're reading schema files from a package directory.
     zip_safe = True,
+
+    cmdclass = {
+        'install': PostInstallCommand,
+    },
 )
