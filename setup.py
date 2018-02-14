@@ -166,7 +166,7 @@ setup(
         # Indicate who your project is intended for
         'Intended Audience :: Other Audience',
         'Topic :: Communications :: Email',
-        'Topic :: Daemon',
+        'Topic :: No Input/Output (Daemon)',
 
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: BSD License',
