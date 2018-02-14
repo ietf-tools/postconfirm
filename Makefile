@@ -16,7 +16,7 @@ shared := /usr/share
 
 module := postconfirm
 
-sources = *.py *.c postconfirmd.1 postconfirm.conf confirm.email.template postconfirm.init wrapper INSTALL
+sources = *.py *.c postconfirmd.8 postconfirm.conf confirm.email.template postconfirm.init wrapper INSTALL
 
 binaries = postconfirmc fdpass.so 
 
