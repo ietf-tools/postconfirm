@@ -1,3 +1,36 @@
+postconfirmd (0.41.0)
+
+  This the first release uploaded to pypi.python.org, for more standardised
+  installation using pip.  It's still not expected to be ready for beta use,
+  but installation on the IETF servers should be easier this way.
+
+  The essensial feature of this release is the ability to do experimental
+  dmarc rewrites, both for outgoing mailman list messages, and to handle
+  replies coming in to the rewritten addresses.  From the commit log:
+
+  * Added dmarc rewrite functionality to postconfirmd.  Also various 
+    accumulated tweaks and changes.
+
+  * Refined setup, in preparation for alpha release to pypi.
+
+  * README updated to indicate that this is an alpha release.
+
+  * Refined mailman interface wrapper, with conditional filter actions.
+
+  * Added some new config defaults.  Fixed an issue with the help display.  
+    Updated imports.  Added chown for the socket.
+
+  * Refactored service.py to permit multiple actions.  Added option 
+    parsing.  Added bounce handling, but commented out.  Added dmarc handling.  
+    Added comprehensive docstring for --help messages.
+
+  * Updated the docstring.  Added default config for dmarc.
+
+  * Tweaked sockserver output to straghten multiple lines into one.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  14 Feb 2018 16:01:53 +0000
+
+
 postconfirmd (0.40)
 
   * Added checking of the mailman list archive flag before adding the
