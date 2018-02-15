@@ -184,8 +184,6 @@ setup(
         Extension('fdpass', ['fdpass.c',]),
     ],
 
-    extra_files = extra_files,
-
     # What does your project relate to?
     keywords='Mailing list posting confirmation daemon',
 
@@ -196,6 +194,9 @@ setup(
     # Alternatively, if you want to distribute just a my_module.py, uncomment
     # this:
     #py_modules=["debug"],
+
+    # Setup requirements
+    setup_requires=['config', ],
 
     # List run-time dependencies here.  These will be installed by pip when
     # your project is installed. For an analysis of "install_requires" vs pip's
@@ -215,9 +216,15 @@ setup(
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
-    package_data={
-    },
+    #package_data={
+    #},
 
+    # If set to True, this tells setuptools to automatically include any data
+    # files it finds inside your package directories that are specified by your
+    # MANIFEST.in file. For more information, see the section below on Including
+    # Data Files.
+    include_package_data=True,
+    
     # Although 'package_data' is the preferred approach, in some case you may
     # need to place data files outside of your packages. See:
     # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa
