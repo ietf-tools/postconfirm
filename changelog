@@ -3,7 +3,7 @@ postconfirm (0.41.1) ietf; urgency=high
   * Changed default dmarc-rewrite %-encoding character from '%' to '=', and 
     made it configurable.
 
- -- Henrik Levkowetz <henrik@levkowetz.com>  15 Feb 2018 16:07:21 +0000
+ -- Henrik Levkowetz <henrik@levkowetz.com>  15 Feb 2018 09:56:52 -0800
 
 postconfirm (0.41.0)
 
