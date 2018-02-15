@@ -1,0 +1,19 @@
+
+Confirmation of list posting -- confirmation ID: $filename
+
+The ietf.org mailing-list server has received a list posting from 
+$sender to the $recipient email list
+with the subject '$[msg["subject"]]'
+
+As the sender address isn't subscribed to the list, and has not been
+confirmed earlier, we have to request a confirmation of the address.
+To confirm the address, send a message to $recipient,
+with the same subject line as this message.
+
+(Simply sending a 'reply' to this message should work from most email
+interfaces, since that usually leaves the subject line in the right
+form.  The reply's additional "Re:" is ok.)
+
+If you do not wish your posting to the list to go through, simply
+disregard this message.  Questions to $[conf.admin_address].
+

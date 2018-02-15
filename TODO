@@ -1,0 +1,14 @@
+TODO
+
+  * Change the confirmation request mail so that a manual action is required
+
+  * Look for 'Reply-To: noreply@.*' mails, and don't send confirmation request,
+    just drop on the floor
+
+  * Add auto-blacklisting, do that senders with N outstanding confirmation
+    requests are added to the blacklist
+
+  * Look for mail containing Subject: Confirm: <confirmation string> and don't
+    send confirmation requests if found -- it's probably a mail loop.
+
+

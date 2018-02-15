@@ -1,0 +1,153 @@
+# ----------------------------------------------------------------------
+#	Generic
+# ----------------------------------------------------------------------
+
+# tool should be set in the tool-specific Makefile, which should include this
+tool    ?= $(shell basename $(PWD))
+version := $(shell ./$(tool) --version | awk '{print $$2}' )
+thisver := $(version)
+prevver := $(shell if [ -d ./archive ]; then ls -d ./archive/$(tool)* | grep -v ".tgz" | grep -v "$(version)" | tail -n 1 | sed 's/.*$(tool)-v//'; else echo "0.00"; fi )
+
+language:= $(shell head -1 $(tool) | awk '{ sub("^.+/", "", $$1); print $$1; }')
+logentry := $(shell sed -n -r "/^$(tool) \($(version).*\)/,/^ -- /p" changelog | head -n -1 | sed -r 's/"/\\"/g' )
+
+# Sources
+sources	+= $(tool) copyright control.in changelog todo template.shtml.pyht Makefile ../Makefile.common
+
+# Webpages
+webpages += index.shtml code.shtml copyright.shtml changelog.shtml
+
+# Additional scripts
+scripts +=
+
+binaries += 
+
+# Install directory
+prefix	:= /usr/local
+
+# ----------------------------------------------------------------------
+# Set up for make in separate build directory
+
+VPATH	= archive build
+
+# ----------------------------------------------------------------------
+# This is what we want to make:
+all:	setup manpage changelog package binaries
+
+# ----------------------------------------------------------------------
+setup:	build archive $(tool)-v0.00
+
+build:
+	[ -d build ] || mkdir build
+
+archive:
+	[ -d archive ] || mkdir archive; 
+
+$(tool)-v0.00:
+	touch archive/$@
+
+# ----------------------------------------------------------------------
+manpage: $(tool).8.gz
+
+%.1:	%.1.txt
+	txt2man $< > $@
+
+%.1:	%
+	./$(tool) --help | txt2man -t "$(tool) 1" > $@
+
+%.8:	postconfirm/%.py
+	$< --help | txt2man -t "$(tool) 8" > $@
+
+%.gz:	%
+	gzip -f $< -c > $@
+
+
+# ----------------------------------------------------------------------
+diff:	build/$(tool)-$(version).diff.html
+
+build/$(tool)-$(thisver).diff.html: $(tool)-v$(prevver) $(tool)
+	rfcdiff --width 82 $^ $@
+
+# ----------------------------------------------------------------------
+binaries: $(binaries)
+
+# ----------------------------------------------------------------------
+package: archive archive/$(tool)-$(version).tgz archive/$(tool)-v$(version)
+
+archive/$(tool)-$(version).tgz: $(sources) control
+	mkdir -p $(tool)-$(version)
+	cp -p $^ $(tool)-$(version)/
+	tar czf $@ $(tool)-$(version)
+	rm -rf $(tool)-$(version)
+
+archive/$(tool)-v$(version): $(tool)
+	cp $< $@
+
+control: control.in $(tool) changelog
+	 sed -r -e 's/^Version:.*/Version: $(version)/' -e "s/^Date:.*/Date: $$(date +'%Y-%m-%d %H:%M:%S')/" $< > $@
+
+packagetest: archive/$(tool)-$(version).tgz
+	cd archive && tar xzf archive/$(tool)-$(version).tgz
+	cd archive/$(tool)-$(version)/ && make
+
+# ----------------------------------------------------------------------
+webpages:	$(webpages:%=build/%)
+
+build/%.shtml:	./%.shtml.frag control template.shtml.pyht
+	pyht template.shtml.pyht view=$< > $@
+
+build/%.shtml:	%.shtml.frag control template.shtml.pyht
+	pyht template.shtml.pyht view=$< > $@
+
+build/%.shtml:	build/%.html control template.shtml.pyht
+	pyht template.shtml.pyht view=$< > $@
+
+build/%.shtml:	../%.shtml
+	cp -p $< $@
+
+build/%.html: %
+	rst2html $< > $@
+
+build/code.html: $(tool)
+	highlight --style-infile ../highlight.css --syntax $(language) --include-style --quiet $< > $@
+
+build/about.html: $(tool).1.gz
+	man -l $< | head -n -1 | tail -n +2 | rst2html > $@
+
+build/index.html: $(tool).1.gz
+	man -l $< | head -n -1 | tail -n +2 | rst2html > $@
+
+build/changelog.html: changelog
+	cat $< | sed -r -e 's!$(tool) *\(([0-9.-]+)\)!`\1 </tools/$(tool)/$(tool)-v\1>`_ (`diff-\1 </tools/$(tool)/$(tool)-\1.diff.html>`_)!' -e 's/^ --(.*)$$/    (\1)/' > $@.tmp
+	rst2html $@.tmp > $@
+
+# ----------------------------------------------------------------------
+build/%.pyht:	%.py.frag control template.shtml.pyht
+	pyht template.shtml.pyht view=$< | sed -r -e 's/<!-- *#include +virtual=/<?python\n\t  virtualinc(/' -e 's/" +-->/")\n\t?>/' > $@
+
+
+
+# ----------------------------------------------------------------------
+commit: diff distinfo
+	@if [ ! "$(logentry)" ]; then echo "Missing changelog entry!"; exit 1; fi
+	sed -r -i -e "1,/^ -- /s/([A-Za-z-]+ <[a-z0-9.-]+@[a-z0-9.-]+>  ).*$$/\1$$(date +'%d %b %Y %H:%M:%S %z')/" changelog
+	sv commit -m"$(logentry)"
+	[ -d .svn/ ] && svn commit -m"$(logentry)" || true
+
+# ----------------------------------------------------------------------
+distinfo: $(tool)-$(version).tgz diff commit
+	[ -f $@ ] || touch $@
+	if grep "$<" $@; then echo "Version $(version) has already been uploaded"; exit 1; fi
+	md5sum		$< | awk '{ printf "MD5 (%s) = %s\n", $$2, $$1; }'	>> $@
+	sha256sum	$< | awk '{ printf "SHA256 (%s) = %s\n", $$2, $$1; }'	>> $@
+	wc -c		$< | awk '{ printf "SIZE (%s) = %s\n", $$2, $$1; }'	>> $@
+
+upload:: $(tool) $(webpages) $(tool)-$(version).tgz $(tool)-$(version).diff.html $(scripts) control distinfo
+	rsync -avuz $^ /www/tools.ietf.org/tools/$(tool)/
+	toolpush /www/tools.ietf.org/tools/$(tool)/
+	toolsfeed control changelog /www/tools.ietf.org/tools/atomfeed.xml
+	toolpush /www/tools.ietf.org/tools/atomfeed.xml
+
+install:: $(tool) $(tool).1.gz
+	sudo install $(tool) $(prefix)/bin
+	sudo install -m 644 $(tool).1.gz /usr/share/man/man1/

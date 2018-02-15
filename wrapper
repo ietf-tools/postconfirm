@@ -1,0 +1,140 @@
+#!/bin/bash
+
+version="0.41.0"
+
+# --- Configuration variables ---
+
+# the filter executable:
+FILTER_BIN=/usr/bin/postconfirmc
+
+# Mailman's distributed mailman executable:
+MAILMAN_BIN=/usr/lib/mailman/mail/mailman
+
+# Mail handler executable
+SENDMAIL_BIN=/usr/sbin/sendmail
+
+# Where we store mailman commands identified as spam
+SPAM_STASH=/a/postconfirm/cache
+
+# --- Re-invoke with logging ---
+if [ "$RUNNING" != "$0" ]; then
+   export RUNNING=$0
+   $0 "$@" 2>&1 | logger -t postconfirmw
+   exit ${PIPESTATUS[0]}
+fi
+
+# Command line arguments
+## The 'action' argument is set by the caller.  Mailman will set 'action' to one
+## of "post", "owner", or "admin".  The postfix group-alias and draft-alias lists
+## will set 'action' to "filter".
+action="$1"
+dest="$2"
+domain="$3"
+
+[ "$domain" ] || domain=${RECIPIENT##*@}
+
+# Debug switch
+DEBUG=""
+# Uncomment for debug:
+#DEBUG=1
+
+# ----------------
+function die() {
+    echo -e "\n$program: error: $*" > /dev/stderr
+    exit 1
+}
+
+# ----------------
+function note() { 
+    [ "$DEBUG" ] && echo -e "$*"
+    logger -i -p user.info -t postconfirmw "$*"
+}
+
+# --- Start of script proper ---
+
+if [ "$DEBUG" ]; then
+    echo "-----------------------------"
+    date
+    cat <<-EOF
+	Prog: $0
+	Args: $@
+	User: $(whoami)
+	USER     : $USER
+	SENDER   : $SENDER
+	RECIPIENT: $RECIPIENT
+	EOF
+fi
+unset HOME
+
+[ -d $SPAM_STASH ] || mkdir -p $SPAM_STASH
+
+SEND_LOCALPART=${SENDER%@*}
+RECV_LOCALPART=${RECIPIENT%@*}
+
+if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
+    note "Mailman response piped directly to mailman"
+    $MAILMAN_BIN "$action" "$dest"
+elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" = filter ]; then
+    # Using a temp file to hold the message isn't pretty, but we need to catch the exit
+    # code from tmda_filter to decide whether to pipe stuff into mailman or not, and
+    # neither $? or $PIPESTATUS[0] lets us do that inside the pipe itself.
+    tmp=$(mktemp -t postconfirm-tmp-XXXXXX)
+    out=$(mktemp -t postconfirm-out-XXXXXX)
+    err=$(mktemp -t postconfirm-err-XXXXXX)
+
+    if [ "$action" = filter ]; then
+	cat - > $tmp
+    else
+	# Add List-Id: so that we're able to calculate the Archived-At: header later.
+	# This will be overwritten by Mailman during its processing.
+	cat - | formail -I "List-ID: <$dest.ietf.org>" > $tmp
+    fi
+
+    note "Input piped to postconfirm: '$FILTER_BIN confirm'"
+    $FILTER_BIN confirm < $tmp 2>$err | /a/postconfirm/insert_expanded_headers "$dest" > $out
+    errnum=${PIPESTATUS[0]}
+    
+    if [ "$DEBUG" ]; then
+	echo "--- $(date +%Y-%m-%d_%H:%M): $* [$SENDER => $RECIPIENT] ---"	>> /tmp/postconfirm-debug.log
+	head $out								>> /tmp/postconfirm-debug.log
+    fi
+
+    if   [ $errnum == 0 ]; then
+	if [ "$action" = filter ]; then
+	    note "Input forwarded to MTA ($SENDMAIL_BIN -f $SENDER $dest@$domain)"
+	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $out
+	else
+	    note "Input forwarded to mailman ($MAILMAN_BIN $action $dest)"
+	    $MAILMAN_BIN "$action" "$dest" < $out
+        fi
+    elif [ $errnum == 1 ]; then
+	note "Error return $errnum from $FILTER_BIN -- not forwarding"
+	[ "$DEBUG" ] && cat $err
+    else
+	if [ "$action" = filter ]; then
+	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to MTA"
+	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $tmp
+	else
+	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
+	    $MAILMAN_BIN "$action" "$dest" < $tmp
+	fi
+    fi
+    [ "$DEBUG" ] || rm -f $tmp $out $err
+else
+    cmd=$(mktemp -t postconfirm-cmd-XXXXX)
+    cat - > $cmd
+    spamflag=$(echo $(formail -c -x "X-Spam-Flag" < $cmd))
+    if [ "$spamflag" = "YES" ]; then
+	spam=$(mktemp "$SPAM_STASH/spamXXXXXXXX")
+	mv $cmd $spam
+	echo "Mailman command flagged as spam, saved as $spam"
+    else
+	actn=$(mktemp "$SPAM_STASH/actnXXXXXXXX")
+	mv $cmd $actn
+	echo "Command '$action': <$SENDER> -> $dest  piped to mailman after spam check, saved as $actn"
+	$MAILMAN_BIN "$action" "$dest" < $actn
+	#rm -f $cmd
+    fi
+fi
+
+true
