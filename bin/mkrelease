@@ -198,7 +198,7 @@ note "Committing the changelog..."
 $do svn commit changelog -m "Changelog entry for $VER"
 
 note "\nDoing the upload"
-$do python sdist upload --sign
+$do python setup.py sdist upload --sign
 
 note "\nCreating new tag 'tags/${WORK:+$WORK/}$VER' from $SRC"
 $do svn cp $REPO/$SRC $REPO/tags/${WORK:+$WORK/}$VER -m "Creating new tag 'tags/${WORK:+$WORK/}$VER' from $SRC"
