@@ -657,6 +657,8 @@ def parse_options():
     group.add_argument('--stop', action='store_true',   help="stop the postconfirmd daemon")
     group.add_argument('--socket', metavar='SOCKET',    help="use the given SOCKET for client-daemon communication")
     group.add_argument('-f', '--sender',                help="the envelope sender address")
+    group.add_argument('-e', '--echo', action='store_true',
+                                                        help="just echo back the command line")
     group.add_argument('recipient', nargs='?',          help="recipients, used with dmarc-rewrite and dmarc-reverse commands")
 
     options = parser.parse_args()
@@ -896,18 +898,22 @@ def handler():
     try:
         options = parse_options()
 
-        #log("sys.argv: %s" % sys.argv)
+        if options.echo:
+            print('sys.argv: %s' % sys.argv)
+            return 0
 
-        if not options.sender and "SENDER" in os.environ:
-            options.sender = os.environ["SENDER"]
-            #log("Set options.sender from $SENDER: %s" % options.sender)
-        if not options.recipient and "RECIPIENT" in os.environ:
-            options.recipient = os.environ["RECIPIENT"]
-            #log("Set options.recipient from $RECIPIENT: %s" % options.recipient)
+        if not options.sender:
+            if "SENDER" in os.environ:
+                options.sender = os.environ["SENDER"]
+            else:
+                log(syslog.LOG_ERR, "sender not provided -- can't process input")
+                return 3
 
-        for attr in ["sender", "recipient" ]:
-            if not getattr(options, attr):
-                log(syslog.LOG_ERR, "'%s' not provided -- can't process input" % (attr))
+        if not options.recipient:
+            if "RECIPIENT" in os.environ:
+                options.recipient = os.environ["RECIPIENT"]
+            else:
+                log(syslog.LOG_ERR, "recipient not provided -- can't process input")
                 return 3
 
         t1 = time.time()
