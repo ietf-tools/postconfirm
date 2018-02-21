@@ -243,18 +243,18 @@ def send_smtp(fromaddr, toaddrs, msg, host, port):
     server.quit()
 
 # ------------------------------------------------------------------------------
-def sendmail(sender, recipient, subject, text, host='localhost', port=25, headers={}):
+def sendmail(sender, recipients, subject, text, host='localhost', port=25, headers={}):
 
     msg = MIMEText(text)
     msg['Subject'] = subject
     msg['From'] = sender
-    msg['To'] = recipient
+    msg['To'] = recipients
     for key in headers:
         msg[key] = headers[key]
     message = msg.as_string()
 
     try:
-        send_smtp(sender, recipient, message, host, port)
+        send_smtp(sender, recipients, message, host, port)
         #log("Sent mail from '%s' to '%s' about '%s'" % (sender, recipient, subject))
         return True
     except Exception, e:
@@ -659,7 +659,7 @@ def parse_options():
     group.add_argument('-f', '--sender',                help="the envelope sender address")
     group.add_argument('-e', '--echo', action='store_true',
                                                         help="just echo back the command line")
-    group.add_argument('recipient', nargs='?',          help="recipients, used with dmarc-rewrite and dmarc-reverse commands")
+    group.add_argument('recipient', nargs='*',          help="recipients, used with dmarc-rewrite and dmarc-reverse commands")
 
     options = parser.parse_args()
 
@@ -823,7 +823,7 @@ def quote(s):
 def unquote(q):
     return urllib.unquote(q.replace(conf.dmarc.rewrite.quote_char, '%'))
 
-def dmarc_rewrite(sender, recipient):
+def dmarc_rewrite(sender, recipients):
     text = sys.stdin.read()
     rewrite_done = False
     msg = email.message_from_string(text)
@@ -832,8 +832,8 @@ def dmarc_rewrite(sender, recipient):
             if msg[key] in conf.dmarc.rewrite.require.header[key]:
                 break
         else:
-            send_smtp(sender, recipient, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
-            log("No dmarc rewrite requirement matched for %s -> %s" % (sender, recipient))
+            send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+            log("No dmarc rewrite requirement matched for %s -> %s" % (sender, recipients))
             return
     from_field = msg["From"]
     from_name, from_addr = email.utils.parseaddr(from_field)
@@ -849,11 +849,11 @@ def dmarc_rewrite(sender, recipient):
             rewrite_done = True
 
     if rewrite_done:
-        send_smtp(sender, recipient, msg.as_string(), conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
-        log("Dmarc rewrite: '%s' to '%s'" % (from_field, new_from))
+        send_smtp(sender, recipients, msg.as_string(), conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+        log("Dmarc rewrite: '%s' to '%s' --> %s" % (from_field, new_from, recipients))
     else:
-        send_smtp(sender, recipient, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
-        log("No dmarc rewrite done for '%s'" % sender)
+        send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+        log("No dmarc rewrite done for '%s' --> %s" % (sender, recipients))
 
 # ------------------------------------------------------------------------------
 
@@ -899,8 +899,7 @@ def handler():
         options = parse_options()
 
         if options.echo:
-            print('sys.argv: %s' % sys.argv)
-            return 0
+            log('sys.argv: %s' % sys.argv)
 
         if not options.sender:
             if "SENDER" in os.environ:
@@ -919,7 +918,18 @@ def handler():
         t1 = time.time()
 
         sender    = strip_batv(options.sender)
-        recipient = options.recipient.strip()
+        recipient = options.recipient
+        if isinstance(recipient, list):
+            if options.action != 'dmarc-rewrite':
+                log(syslog.LOG_ERR, "only the dmarc-rewrite action accepts multiple recipients")
+                recipient = recipient[0].strip()
+            else:
+                recipient = [ r.strip() for r in recipient ]
+        else:
+            if options.action == 'dmarc-rewrite':
+                recipient = [ recipient.strip() ]
+            else:
+                recipient = recipient.strip()
 
         if   options.action == 'confirm':
             result = confirm(sender, recipient)
