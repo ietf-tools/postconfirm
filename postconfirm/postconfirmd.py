@@ -360,8 +360,7 @@ def run():
         raise
 
     os.chmod(conf.socket_path, stat.S_IRWXU | stat.S_IRWXG )
-    if not conf.foreground:
-        os.chown(conf.socket_path, uid, gid)
+    os.chown(conf.socket_path, uid, gid)
 
     try:        
         server.serve_forever()
