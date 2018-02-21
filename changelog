@@ -1,3 +1,18 @@
+postconfirm (0.41.3) ietf; urgency=high
+
+  * Added warnings on failure for some post-install actions.
+
+  * Changed the interface to accept multiple recipients when given on the
+    command line (for use with dmarc-rewrite).  Changed dmarc-rewrite to
+    accept multiple recipients, and renamed the recipient argument for other
+    functions that can accept recipient lists.  
+
+  * Changed the -e argument to log arguments to syslog and not exit.
+
+  * Reverted an earlier change of socket ownership handling.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  21 Feb 2018 08:29:30 -0800
+
 postconfirm (0.41.2) ietf; urgency=high
 
   * Added and --echo argument to echo back sys.argv.  Rewrote the logic to 
