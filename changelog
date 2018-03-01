@@ -1,3 +1,12 @@
+postconfirm (0.41.4) ietf; urgency=high
+
+  * Fixed a bug in dmarc_rewrite(), where the return values from
+    email.utils.getaddresses() was not handled properly.
+
+  * Tweaked some setup error messages
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  01 Mar 2018 06:47:58 -0800
+
 postconfirm (0.41.3) ietf; urgency=high
 
   * Added warnings on failure for some post-install actions.
