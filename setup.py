@@ -18,14 +18,14 @@ def maybe_chown(path, uid, gid):
     try:
         os.chown(path, uid, gid)
     except OSError:
-        sys.stderr.write("WARNING: Failed chown %s:%s %s" % (uid, gid, path))
+        sys.stderr.write("   WARNING: Failed chown %s:%s %s\n" % (uid, gid, path))
         pass
 
 def maybe_chmod(path, mode):
     try:
         os.chmod(path, mode)
     except OSError:
-        sys.stderr.write("WARNING: Failed chmod %s %s" % (mode, path))
+        sys.stderr.write("   WARNING: Failed chmod %s %s\n" % (mode, path))
         pass
 
 class PostInstallCommand(install):
