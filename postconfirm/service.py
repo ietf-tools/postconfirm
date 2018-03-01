@@ -29,7 +29,9 @@ import smtplib
 import urllib
 import dns.resolver
 import dns.rdatatype
+
 from email.MIMEText import MIMEText
+
 #from flufl import bounce
 #from datetime import datetime as Datetime, timedelta as Timedelta
 
@@ -45,6 +47,10 @@ timestamp_fmt = "%Y-%m-%dT%H:%M:%S"
 def err(msg):
     sys.stderr.write("Error: %s\n" % (msg, ))
     log(syslog.LOG_ERR, msg)
+
+def debug(expr, locals):
+    msg = '%s: %s' % (expr, eval(expr, globals(), locals))
+    log(syslog.LOG_INFO, msg)
 
 # ------------------------------------------------------------------------------
 def filetext(file):
@@ -872,8 +878,7 @@ def dmarc_reverse(sender, recipient):
         if addresses:
             reversed = []
             dirty = False
-            for recp in email.utils.getaddresses(addresses):
-                name, addr = email.utils.parseaddr(recp)
+            for name, addr in email.utils.getaddresses(addresses):
                 if addr.endswith('@%s'%conf.dmarc.domain):
                     localpart, dom  = addr.rsplit('@', 1)
                     addr = unquote(localpart)
