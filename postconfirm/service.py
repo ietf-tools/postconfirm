@@ -872,7 +872,6 @@ def dmarc_reverse(sender, recipient):
     msg = email.message_from_string(text)
     log("To: %s" % msg['to'])
     log("From: %s" % msg['from'])
-    changed = False
     for field in [ 'To', 'Cc', ]:
         addresses = msg.get_all(field)
         if addresses:
@@ -888,12 +887,8 @@ def dmarc_reverse(sender, recipient):
                 del msg[field]
                 for a in reversed:
                     msg[field] = a
-                changed = True
-    if changed:
-        send_smtp(sender, reversed, msg.as_string(), conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
-    else:
-        send_smtp(sender, recipient, text, conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
-        log(syslog.LOG_ERR, "Received a message for dmarc-reverse processing, but found no address to reverse")
+
+    send_smtp(sender, recipient, msg.as_string(), conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
 
 
 # ------------------------------------------------------------------------------
