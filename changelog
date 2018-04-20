@@ -1,3 +1,11 @@
+postconfirm (0.41.5) ietf; urgency=high
+
+  * Fixed dmarc_reverse() to not re-send to other addresses than the 
+    indicated recipient.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  20 Apr 2018 05:04:44 -0700
+
+
 postconfirm (0.41.4) ietf; urgency=high
 
   * Fixed a bug in dmarc_rewrite(), where the return values from
