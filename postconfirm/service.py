@@ -142,7 +142,7 @@ def read_listinfo():
             listinfo[name]['archive'] = bool(mmlist.archive)
         log("Read %s mailman listinfo entries" % len(listinfo))
     except Exception as e:
-        log("Exception when reading mailman listinfo:" % e)
+        log("Exception when reading mailman listinfo: %s" % e)
 
 # ------------------------------------------------------------------------------
 # def read_bouncelist(file):
@@ -242,11 +242,15 @@ def setup(configuration, files):
 
 # ------------------------------------------------------------------------------
 def send_smtp(fromaddr, toaddrs, msg, host, port):
-    server = smtplib.SMTP(host, port)
-    #server.set_debuglevel(1)    
-    server.sendmail(fromaddr, toaddrs, msg)
-    log("SMTP %s:%s  %s -> %s" % (host, port, fromaddr, toaddrs))
-    server.quit()
+    try:
+        server = smtplib.SMTP(host, port)
+        #server.set_debuglevel(1)    
+        server.sendmail(fromaddr, toaddrs, msg)
+        #log("SMTP %s:%s  %s -> %s" % (host, port, fromaddr, toaddrs))
+        server.quit()
+    except Exception as e:
+        log(syslog.LOG_ERR, "Error sending mail: %s" % (e, ))
+        raise
 
 # ------------------------------------------------------------------------------
 def sendmail(sender, recipients, subject, text, host='localhost', port=25, headers={}):
@@ -802,7 +806,7 @@ def dmarc_reject_or_quarantine(domain, org=False):
             continue
         dmarcs = [ record for record in results_by_name[name] if record.startswith('v=DMARC1;') ]
         if len(dmarcs) == 0:
-            sys.stderr.write("no DMARC1 records for %s\n" % (policy, dmarc_domain))            
+            sys.stderr.write("no DMARC1 records for %s\n" % (dmarc_domain, ))
             return None
         if len(dmarcs) > 1:
             log('RRset of TXT records for %s has %d v=DMARC1 entries; ignoring them per RFC 7489, Section 6.6.3 .' %
@@ -839,7 +843,7 @@ def dmarc_rewrite(sender, recipients):
                 break
         else:
             send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
-            log("No dmarc rewrite requirement matched for %s -> %s" % (sender, recipients))
+            #log("No dmarc rewrite requirement matched for %s -> %s" % (sender, recipients))
             return
     from_field = msg["From"]
     from_name, from_addr = email.utils.parseaddr(from_field)
@@ -859,36 +863,39 @@ def dmarc_rewrite(sender, recipients):
         log("Dmarc rewrite: '%s' to '%s' --> %s" % (from_field, new_from, recipients))
     else:
         send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
-        log("No dmarc rewrite done for '%s' --> %s" % (sender, recipients))
+        #log("No dmarc rewrite done for '%s' --> %s" % (sender, recipients))
 
 # ------------------------------------------------------------------------------
 
 def dmarc_reverse(sender, recipient):
-    if recipient.endswith('@%s'%conf.dmarc.domain):
-        localpart, dom  = recipient.rsplit('@', 1)
-        recipient = unquote(localpart)
+    recipients = []
 
     text = sys.stdin.read()
     msg = email.message_from_string(text)
-    log("To: %s" % msg['to'])
-    log("From: %s" % msg['from'])
-    for field in [ 'To', 'Cc', ]:
-        addresses = msg.get_all(field)
-        if addresses:
-            reversed = []
-            dirty = False
-            for name, addr in email.utils.getaddresses(addresses):
-                if addr.endswith('@%s'%conf.dmarc.domain):
-                    localpart, dom  = addr.rsplit('@', 1)
-                    addr = unquote(localpart)
-                    dirty = True
-                reversed.append( email.utils.formataddr((name, addr)) )
-            if dirty:
-                del msg[field]
-                for a in reversed:
-                    msg[field] = a
-
-    send_smtp(sender, recipient, msg.as_string(), conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
+    if sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+        for field in [ 'To', 'Cc', ]:
+            addresses = msg.get_all(field)
+            if addresses:
+                reversed = []
+                dirty = False
+                for name, addr in email.utils.getaddresses(addresses):
+                    oaddr = addr
+                    if addr.endswith('@%s'%conf.dmarc.domain):
+                        localpart, dom  = addr.rsplit('@', 1)
+                        addr = unquote(localpart)
+                        recipients.append( email.utils.formataddr((name, addr)) )
+                        dirty = True
+                        log("dmarc-reverse message-id=%s from=<%s> x-original-to=<%s> to=<%s>" % (msg['message-id'], sender, oaddr, addr, ))
+                    reversed.append( email.utils.formataddr((name, addr)) )
+                if dirty:
+                    del msg[field]
+                    for a in reversed:
+                        msg[field] = a
+        send_smtp(sender, recipients, msg.as_string(), conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
+        return 0
+    else:
+        log("Received a dmarc-rewrite message from a sender not in whitelist or confirmed list: %s" % sender)
+        return 4
 
 
 # ------------------------------------------------------------------------------
@@ -921,7 +928,8 @@ def handler():
         recipient = options.recipient
         if isinstance(recipient, list):
             if options.action != 'dmarc-rewrite':
-                log(syslog.LOG_ERR, "only the dmarc-rewrite action accepts multiple recipients")
+                if len(recipient) > 1:
+                    log(syslog.LOG_ERR, "Only the dmarc-rewrite action accepts multiple recipients: %s" % recipients)
                 recipient = recipient[0].strip()
             else:
                 recipient = [ r.strip() for r in recipient ]
