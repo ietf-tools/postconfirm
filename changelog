@@ -1,3 +1,18 @@
+postconfirm (0.42.0) ietf; urgency=high
+
+  * Added a check on the sender address during dmarc-reverse processing,
+    requiring that the sender is whitelisted or has a confirmed address.
+
+  * Changed the logging of dmarc-reverse processing to use a more compact
+    log line format, and commented out some debug logging statements.
+
+  * Added exception catching and loggin for failures to open smtp sessions
+    to the configured server and port.
+
+  * Fixed a log writing bug.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  09 May 2018 14:04:31 -0700
+
 postconfirm (0.41.5) ietf; urgency=high
 
   * Fixed dmarc_reverse() to not re-send to other addresses than the 
