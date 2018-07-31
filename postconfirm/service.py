@@ -784,7 +784,7 @@ def dmarc_reject_or_quarantine(domain, org=False):
         if rec.rdtype != dns.rdatatype.TXT:
             continue
         result = ''.join([ record for record in rec.items[0].strings ])
-        name = rec.name.to_text()
+        name = rec.name.to_text().lower()
         results_by_name.setdefault(name, []).append(result)
     #
     want_names = set([dmarc_domain + '.'])
@@ -802,6 +802,7 @@ def dmarc_reject_or_quarantine(domain, org=False):
             want_names.discard(item)
     assert len(want_names) == 1, ('Error in CNAME processing for %s; want_names != 1.'%(dmarc_domain,))
     for name in want_names:
+        name = name.lower()
         if name not in results_by_name:
             continue
         dmarcs = [ record for record in results_by_name[name] if record.startswith('v=DMARC1;') ]
@@ -922,7 +923,7 @@ def handler():
                 log(syslog.LOG_ERR, "recipient not provided -- can't process input")
                 return 3
 
-        t1 = time.time()
+        #t1 = time.time()
 
         sender    = strip_batv(options.sender)
         recipient = options.recipient
@@ -949,8 +950,8 @@ def handler():
             log(syslog.LOG_ERR, "Bad command: %s" % (options.action, ))
             result = 3
 
-        t2 = time.time()
-        log(syslog.LOG_INFO, "Wall time in %s handler: %.6f s." % (options.action, t2 - t1))
+        #t2 = time.time()
+        #log(syslog.LOG_INFO, "Wall time in %s handler: %.6f s." % (options.action, t2 - t1))
 
         return result
 
