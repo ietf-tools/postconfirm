@@ -1,3 +1,11 @@
+postconfirm (0.42.1) ietf; urgency=low
+
+  * Added domain name normalization (to lowercase) before checking whether we
+    got a hit on the _dmarc domain lookup.  Commented out verbose wall-time
+    log messages.
+
+ -- Henrik Levkowetz <henrik@levkowetz.com>  31 Jul 2018 08:48:14 -0700
+
 postconfirm (0.42.0) ietf; urgency=high
 
   * Added a check on the sender address during dmarc-reverse processing,
