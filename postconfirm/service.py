@@ -824,6 +824,11 @@ def dmarc_reject_or_quarantine(domain, org=False):
                 else:
                     continue
             if policy in ('reject', 'quarantine'):
+                match = re.search(r'\bpct=([0-9]+)\b', entry, re.IGNORECASE)
+                if match:
+                    pct = match.group(1)
+                    if pct == '0':
+                        return False
                 return True
     return False
     
@@ -930,7 +935,7 @@ def handler():
         if isinstance(recipient, list):
             if options.action != 'dmarc-rewrite':
                 if len(recipient) > 1:
-                    log(syslog.LOG_ERR, "Only the dmarc-rewrite action accepts multiple recipients: %s" % recipients)
+                    log(syslog.LOG_ERR, "Only the dmarc-rewrite action accepts multiple recipients: %s" % recipient)
                 recipient = recipient[0].strip()
             else:
                 recipient = [ r.strip() for r in recipient ]
