@@ -276,7 +276,7 @@ def get_msgid(msg):
     if not msgid:
         msgid = msg['Resent-Message-Id']
     if msgid:
-        msgid = msgid.strip('<>')
+        msgid = msgid.strip().strip('<>')
     else:
         msgid = email.utils.make_msgid('ARCHIVE')
     return msgid
@@ -317,7 +317,7 @@ def cache_mail():
                 sha.update(list)
                 hash = base64.urlsafe_b64encode(sha.digest()).strip("=")
                 msg["Archived-At"] = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
-                log("Setting Archived-At: %s" % msg["Archived-At"])
+                log("Message-ID=%s: Setting Archived-At: %s" % (msgid, msg["Archived-At"]))
             else:
                 log("Listinfo[%s]['archive'] = %s" % (list, listinfo[list]['archive']))
         out.write(msg.as_string(unixfrom=True))
