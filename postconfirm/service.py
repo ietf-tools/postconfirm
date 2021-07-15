@@ -283,6 +283,25 @@ def get_msgid(msg):
 
 
 # ------------------------------------------------------------------------------
+def get_list_address(msg, recipient):
+    """Returns the list address derived from message To/CC headers or empty string"""
+    tos = msg.get_all('to', [])
+    ccs = msg.get_all('cc', [])
+    # strip domain from recipient, gives "username@"
+    index = recipient.find('@')
+    username = recipient[:index + 1]
+    if username == '' or not username.endswith('@'):
+        log(syslog.LOG_INFO, "Problem stripping domain from {}".format(recipient))
+        return ''
+    for name, address in email.utils.getaddresses(tos + ccs):
+        if address.startswith(username):
+            return address
+
+    log(syslog.LOG_INFO, "Problem extracting list address from headers. recipient={}, id={}".format(recipient, msg['Message-Id']))
+    return ''
+
+
+# ------------------------------------------------------------------------------
 def cache_mail():
     global listinfo
 
@@ -317,7 +336,7 @@ def cache_mail():
                 sha.update(list)
                 hash = base64.urlsafe_b64encode(sha.digest()).strip("=")
                 msg["Archived-At"] = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
-                log("Message-ID=%s: Setting Archived-At: %s" % (msgid, msg["Archived-At"]))
+                log("Setting Archived-At: %s (list: %s, id: %s)" % (msg["Archived-At"], list, msgid))
             else:
                 log("Listinfo[%s]['archive'] = %s" % (list, listinfo[list]['archive']))
         out.write(msg.as_string(unixfrom=True))
@@ -326,7 +345,6 @@ def cache_mail():
         out.write(text)
     out.close()
     return outfn, msg, all
-
 
 # ------------------------------------------------------------------------------
 def hash(bytes):
@@ -682,7 +700,7 @@ def confirm(sender, recipient):
 
         It is expected that the following environment variables set:
         SENDER   : Envelope MAIL FROM address
-	RECIPIENT: Envelope RCPT TO address
+        RECIPIENT: Envelope RCPT TO address
 
         The service handler looks up the sender in the whitelist, and if found,
         the mail on stdin is passed out on stdout.  If not found, the mail is
@@ -699,6 +717,16 @@ def confirm(sender, recipient):
     # With a return code of 0, the incoming message will be forwarded
     # With a return code of 1, the incoming message will be left in cache until it's cleared out.
     # All other return codes indicate postconfirmd failures, and the message will be passed through
+
+    # When the postconfirm client is called from postfix, it's environment
+    # includes RECIPIENT variable, but the address it contains has the wrong
+    # domain, that of the local host. For example: attendees@ietfa.amsl.com
+    # instead of attendees@ietf.org. Need to get the real list address from the
+    # message headers
+    r = get_list_address(msg, recipient)
+    if r:
+        # recipient = r
+        log(syslog.LOG_INFO, "Test: original_recipient: %s, new_recipient: %s" % (recipient, r))
 
     precedence = msg.get("Precedence", "")
     precedence_match = re.search(conf.bulk_regex, precedence)
@@ -756,7 +784,10 @@ def get_dns_record(dom, rtype):
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
         return None
     except dns.exception.DNSException as error:
-        log('DNSException: Unable to resolve %s: %s', dom, error.__doc__)
+        try:
+            log('DNSException: Unable to resolve %s: %s' %(dom, error.__doc__))
+        except TypeError:
+            log(str(error))
         return None
     return recs
 
@@ -824,11 +855,6 @@ def dmarc_reject_or_quarantine(domain, org=False):
                 else:
                     continue
             if policy in ('reject', 'quarantine'):
-                match = re.search(r'\bpct=([0-9]+)\b', entry, re.IGNORECASE)
-                if match:
-                    pct = match.group(1)
-                    if pct == '0':
-                        return False
                 return True
     return False
     
@@ -866,7 +892,7 @@ def dmarc_rewrite(sender, recipients):
 
     if rewrite_done:
         send_smtp(sender, recipients, msg.as_string(), conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
-        log("Dmarc rewrite: '%s' to '%s' --> %s" % (from_field, new_from, recipients))
+        #log("Dmarc rewrite: '%s' to '%s' --> %s" % (from_field, new_from, recipients))
     else:
         send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
         #log("No dmarc rewrite done for '%s' --> %s" % (sender, recipients))
@@ -928,6 +954,9 @@ def handler():
                 log(syslog.LOG_ERR, "recipient not provided -- can't process input")
                 return 3
 
+        options.original_recipient = os.environ.get("ORIGINAL_RECIPIENT")
+        log(syslog.LOG_INFO, "recipient: %s, original_recipient: %s" % (options.recipient, options.original_recipient))
+
         #t1 = time.time()
 
         sender    = strip_batv(options.sender)
@@ -935,7 +964,7 @@ def handler():
         if isinstance(recipient, list):
             if options.action != 'dmarc-rewrite':
                 if len(recipient) > 1:
-                    log(syslog.LOG_ERR, "Only the dmarc-rewrite action accepts multiple recipients: %s" % recipient)
+                    log(syslog.LOG_ERR, "Only the dmarc-rewrite action accepts multiple recipients: %s" % recipients)
                 recipient = recipient[0].strip()
             else:
                 recipient = [ r.strip() for r in recipient ]
