@@ -921,8 +921,7 @@ def dmarc_reverse(sender, recipient):
                     reversed.append( email.utils.formataddr((name, addr)) )
                 if dirty:
                     del msg[field]
-                    for a in reversed:
-                        msg[field] = a
+                    msg[field] = ", ".join(reversed)
         send_smtp(sender, recipients, msg.as_string(), conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
         return 0
     else:
