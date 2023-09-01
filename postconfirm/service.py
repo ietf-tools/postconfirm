@@ -29,11 +29,16 @@ import smtplib
 import urllib
 import dns.resolver
 import dns.rdatatype
+import datetime
 
 from email.MIMEText import MIMEText
 
 #from flufl import bounce
 #from datetime import datetime as Datetime, timedelta as Timedelta
+
+# for testing, set from test wrapper to an object that does test
+# versions of stuff
+testing = False
 
 log = syslog.syslog
 
@@ -242,6 +247,12 @@ def setup(configuration, files):
 
 # ------------------------------------------------------------------------------
 def send_smtp(fromaddr, toaddrs, msg, host, port):
+    global testing
+
+    if testing: # dump out, don't really send
+        testing.send_smtp(fromaddr, toaddrs, msg)
+        return
+
     try:
         server = smtplib.SMTP(host, port)
         #server.set_debuglevel(1)    
@@ -290,20 +301,29 @@ def get_list_address(msg, recipient):
     # strip domain from recipient, gives "username@"
     index = recipient.find('@')
     username = recipient[:index + 1]
+    if testing:
+        print >>sys.stderr,"=== list addr %s %s %s %s" % (recipient, tos, ccs, username)
     if username == '' or not username.endswith('@'):
         log(syslog.LOG_INFO, "Problem stripping domain from {}".format(recipient))
+        if testing:
+            print >>sys.stderr,"=== no address strip"
         return ''
     for name, address in email.utils.getaddresses(tos + ccs):
         if address.startswith(username):
+            if testing:
+                print >>sys.stderr,"=== address is", address
             return address
 
     log(syslog.LOG_INFO, "Problem extracting list address from headers. recipient={}, id={}".format(recipient, msg['Message-Id']))
+    if testing:
+        print >>sys.stderr,"=== no address"
     return ''
 
 
 # ------------------------------------------------------------------------------
 def cache_mail():
     global listinfo
+    global testing
 
     seconds = base64.urlsafe_b64encode(struct.pack(">i",int(time.time()))).strip("=")
     outfd, outfn = tempfile.mkstemp("", seconds, conf.mail_cache_dir)
@@ -335,16 +355,33 @@ def cache_mail():
                 sha = hashlib.sha1(msgid)
                 sha.update(list)
                 hash = base64.urlsafe_b64encode(sha.digest()).strip("=")
-                msg["Archived-At"] = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
+                archivedat = conf.archive_url_pattern % {'list': list, 'hash': hash, "msgid": msgid}
+                msg["Archived-At"] = archivedat
                 log("Setting Archived-At: %s (list: %s, id: %s)" % (msg["Archived-At"], list, msgid))
+                ## update the text to add the Archived-At at the end
+                ## of headers
+                msghead, msgsep, msgbody = text.split('\n\n')
+                if msgsep:
+                    text = msghead + '\nArchived-At: ' + archivedat + msgsep + msgbody
+                else:
+                    # use literal \n\n in case message has no body
+                    text = msghead + 'Archived-At: ' + archivedat + '\n\n'
             else:
                 log("Listinfo[%s]['archive'] = %s" % (list, listinfo[list]['archive']))
-        out.write(msg.as_string(unixfrom=True))
+
+        # fake the Unix from
+        now = datetime.datetime.now()
+        unixfrom = 'From nobody %s\n' % now.strftime('%a %b %d %H:%M:%S %Y')
+        out.write(unixfrom)
+        out.write(text)
+#        out.write(msg.as_string(unixfrom=True))
     else:
         msg = text
         out.write(text)
     out.close()
-    return outfn, msg, all
+    if testing:
+        print >> sys.stderr, "=== cache_msg outfn %s, all %s" % (outfn, all)
+    return outfn, msg, all, text
 
 # ------------------------------------------------------------------------------
 def hash(bytes):
@@ -379,6 +416,8 @@ def request_confirmation(sender, recipient, cachefn, msg):
     precedence = msg.get("precedence", "")
     precedence_match = re.search(conf.bulk_regex, precedence)
     if precedence_match:
+        if testing:
+            print >>sys.stderr,"=== skip precedence",precedence
         log(syslog.LOG_INFO, "Skipped confirmation for 'Precedence: %s' message from <%s>" % (precedence, sender,))
         # leave message in cache till cleaned out
         return 1
@@ -389,6 +428,8 @@ def request_confirmation(sender, recipient, cachefn, msg):
     text = body
     confirm_match = re.search(confirm_pat, text)
     if confirm_match:
+        if testing:
+            print >>sys.stderr,"=== confirm match",confirm_match
         dummy, rcp, fn, hash = confirm_match.group(0).rsplit(":", 3)
         if valid_hash(sender, rcp.lstrip(), fn, hash):
             # We have a valid confirmation code inside a message which did
@@ -401,11 +442,15 @@ def request_confirmation(sender, recipient, cachefn, msg):
             return 1
 
     if sender.lower() in set([ "", recipient.lower() ]):
+        if testing:
+            print >>sys.stderr, "Skipped requesting confirmation from <%s>" % (sender,)
         log(syslog.LOG_INFO, "Skipped requesting confirmation from <%s>" % (sender,))
         os.unlink(cachefn)
         return 1
 
     if sender.lower() in blacklist or (blackregex and re.match(blackregex, sender.lower())):
+        if testing:
+            print >>sys.stderr, "Skipped confirmation from blacklisted <%s>" % (sender,)
         log(syslog.LOG_INFO, "Skipped confirmation from blacklisted <%s>" % (sender,))
         os.unlink(cachefn)
         return 1
@@ -435,7 +480,9 @@ def request_confirmation(sender, recipient, cachefn, msg):
 
     template = filetext(conf.mail_template)
     text = interpolate.interpolate(template, {'filename':filename, 'sender':sender, 'recipient':recipient, 'msg':msg, 'conf':conf})
-
+#    if testing:
+#        print >>sys.stderr,"=== send conf",recipient,sender,subject,text
+        
     sendmail(recipient, sender, subject, text, conf.confirm.smtp.host, conf.confirm.smtp.port)
 
     return 1
@@ -500,20 +547,27 @@ def valid_hash(sender, recipient, filename, hash):
 
 # ------------------------------------------------------------------------------
 def forward_cached_post(cachefn):
+    # check for list-ID to see if it's list mail or just a forward
     file = open(cachefn)
-    while True:
-        text = file.read(8192)
-        if not text:
-            break
-        sys.stdout.write(text)
+    text = file.read()
     file.close()
+    msg = email.message_from_string(text)
+    if msg['List-Id']:
+        sys.stdout.write(text)
+    else:
+        dmarc_rewrite(None, None, text=text,remail=False) # ignores sender/recipients if not remail
     os.unlink(cachefn)
 
 # ------------------------------------------------------------------------------
-def forward_whitelisted_post(sender, recipient, cachefn, msg, all):
+def forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext):
+    # all is always true here
+    # forward directly to list, do DMARC rewrite otherwise
     log(syslog.LOG_DEBUG, "Forwarding from whitelisted <%s> to %s" % (sender, recipient))
     if all:
-        sys.stdout.write(msg.as_string())
+        if msg['List-Id']:
+            sys.stdout.write(msgtext)
+        else:
+            dmarc_rewrite(None, None, text=msgtext,remail=False) # ignores sender/recipients if not remail
     else:
         forward_cached_post(cachefn)
     return 0
@@ -695,7 +749,7 @@ def parse_options():
 
 # ------------------------------------------------------------------------------
 
-def confirm(sender, recipient):
+def confirm(sender, recipient, remail_sender):
     """ Lookup email sender in whitelist; forward or cache email pending confirmation.
 
         It is expected that the following environment variables set:
@@ -711,7 +765,9 @@ def confirm(sender, recipient):
         cleans out the cache with desired intervals and cache retention time.
     """
 
-    cachefn, msg, all = cache_mail()
+    if testing:
+        print >> sys.stderr, "=== confirm %s -> %s" % (sender, recipient)
+    cachefn, msg, all, msgtext = cache_mail()
 
     err = 0
     # With a return code of 0, the incoming message will be forwarded
@@ -727,6 +783,8 @@ def confirm(sender, recipient):
     if r:
         # recipient = r
         log(syslog.LOG_INFO, "Test: original_recipient: %s, new_recipient: %s" % (recipient, r))
+        if testing:
+            print >> sys.stderr, "=== original_recipient: %s, new_recipient: %s" % (recipient, r)
 
     precedence = msg.get("Precedence", "")
     precedence_match = re.search(conf.bulk_regex, precedence)
@@ -743,8 +801,12 @@ def confirm(sender, recipient):
 #         update_bouncelist(bounced_addresses)
 #         err = 1
     elif precedence_match:
+        if testing:
+            print >> sys.stderr, "=== precedence match",precedence
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
+            if testing:
+                print >> sys.stderr, "=== precedence forward whitelisted %s" % cachefn
+            err = forward_whitelisted_post(remail_sender, recipient, cachefn, msg, all, msgtext)
         else:
             log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (precedence, sender,))
             err = 1
@@ -752,11 +814,15 @@ def confirm(sender, recipient):
         # leaves message in cache till cleaned out        
     elif auto_submitted_match:
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
+            if testing:
+                print >> sys.stderr, "=== autosubmitted forward whitelisted %s" % cachefn
+            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext)
         else:
             log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (auto_submitted, sender,))
             err = 1
     elif re.search(confirm_pat, msg.get("subject", "")):
+        if testing:
+            print >> sys.stderr, "=== confirm %s" % msg.get("subject", "")
         err =  verify_confirmation(sender, recipient, msg)
         if err:
             log(syslog.LOG_INFO, "Message with failed confirmation saved as %s" % (cachefn))
@@ -764,9 +830,16 @@ def confirm(sender, recipient):
             os.unlink(cachefn)
     else:
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all)
+            if testing:
+                print >> sys.stderr, "=== foward_whitelisted_post %s" % cachefn
+            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext)
         else:
+            if testing:
+                print >> sys.stderr, "=== request confirmation %s %s %s" % (sender, recipient, cachefn)
             err = request_confirmation(sender, recipient, cachefn, msg)
+
+    if testing:
+        print >> sys.stderr, "=== end of handler"
 
     if err:
         raise SystemExit(err)
@@ -837,6 +910,8 @@ def dmarc_reject_or_quarantine(domain, org=False):
         if name not in results_by_name:
             continue
         dmarcs = [ record for record in results_by_name[name] if record.startswith('v=DMARC1;') ]
+        if testing:
+            print >>sys.stderr,"=== dmarc records",dmarcs
         if len(dmarcs) == 0:
             sys.stderr.write("no DMARC1 records for %s\n" % (dmarc_domain, ))
             return None
@@ -865,8 +940,12 @@ def quote(s):
 def unquote(q):
     return urllib.unquote(q.replace(conf.dmarc.rewrite.quote_char, '%'))
 
-def dmarc_rewrite(sender, recipients):
-    text = sys.stdin.read()
+def dmarc_rewrite(sender, recipients, text=None, remail=True):
+    # text is message contents if already read
+    # remail says to mail it for direct dmarc-rewrite, otherwise just
+    # send to stdout
+    if not text:
+        text = sys.stdin.read()
     rewrite_done = False
     msg = email.message_from_string(text)
     if conf.dmarc.rewrite.require and conf.dmarc.rewrite.require.header:
@@ -874,11 +953,16 @@ def dmarc_rewrite(sender, recipients):
             if msg[key] in conf.dmarc.rewrite.require.header[key]:
                 break
         else:
+            if testing:
+                print >>sys.stderr,"=== no dmarc rewrite"
             send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
             #log("No dmarc rewrite requirement matched for %s -> %s" % (sender, recipients))
             return
     from_field = msg["From"]
     from_name, from_addr = email.utils.parseaddr(from_field)
+    if testing:
+        print >>sys.stderr,"=== dmarc from %s <%s>" % (from_name, from_addr)
+
     if from_addr:
         from_local, at, from_dom = from_addr.partition('@')
         if at == '@' and dmarc_reject_or_quarantine(from_dom):
@@ -891,10 +975,16 @@ def dmarc_rewrite(sender, recipients):
             rewrite_done = True
 
     if rewrite_done:
-        send_smtp(sender, recipients, msg.as_string(), conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+        if remail:
+            send_smtp(sender, recipients, msg.as_string(), conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+        else:
+            sys.stdout.write(msg.as_string())
         #log("Dmarc rewrite: '%s' to '%s' --> %s" % (from_field, new_from, recipients))
     else:
-        send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+        if remail:
+            send_smtp(sender, recipients, text, conf.dmarc.rewrite.smtp.host, conf.dmarc.rewrite.smtp.port)
+        else:
+            sys.stdout.write(text)
         #log("No dmarc rewrite done for '%s' --> %s" % (sender, recipients))
 
 # ------------------------------------------------------------------------------
@@ -974,7 +1064,7 @@ def handler():
                 recipient = recipient.strip()
 
         if   options.action == 'confirm':
-            result = confirm(sender, recipient)
+            result = confirm(sender, recipient, conf.remail_sender)   # use remail for forwarding
         elif options.action == 'dmarc-rewrite':
             result = dmarc_rewrite(sender, recipient)
         elif options.action == 'dmarc-reverse':
