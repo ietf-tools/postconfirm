@@ -138,6 +138,9 @@ def read_listinfo():
     global listinfo
 
     listinfo = {}
+    if testing:
+        listinfo = testing.getlistinfo()
+        return
     try:
         from Mailman import Utils
         from Mailman import MailList
@@ -336,7 +339,8 @@ def cache_mail():
         # The following assumes that the 'List-Id' header field has been set
         # properly in the wrapper before sending the message to postconfirmd:
         if msg['List-Id']:
-            from Mailman import MailList # This has to happen after we're configured
+            if not testing: # faked in tests, listinfo already set
+                from Mailman import MailList # This has to happen after we're configured
             try:
                 list = re.search('<([^>]+)>', msg['List-Id']).group(1).replace('.ietf.org', '')
             except Exception:
@@ -360,7 +364,7 @@ def cache_mail():
                 log("Setting Archived-At: %s (list: %s, id: %s)" % (msg["Archived-At"], list, msgid))
                 ## update the text to add the Archived-At at the end
                 ## of headers
-                msghead, msgsep, msgbody = text.split('\n\n')
+                msghead, msgsep, msgbody = text.partition('\n\n')
                 if msgsep:
                     text = msghead + '\nArchived-At: ' + archivedat + msgsep + msgbody
                 else:
@@ -560,7 +564,7 @@ def forward_cached_post(cachefn):
 
 # ------------------------------------------------------------------------------
 def forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext):
-    # all is always true here
+    # all is always true here, sender and recipient ignored
     # forward directly to list, do DMARC rewrite otherwise
     log(syslog.LOG_DEBUG, "Forwarding from whitelisted <%s> to %s" % (sender, recipient))
     if all:
@@ -806,7 +810,7 @@ def confirm(sender, recipient, remail_sender):
         if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
             if testing:
                 print >> sys.stderr, "=== precedence forward whitelisted %s" % cachefn
-            err = forward_whitelisted_post(remail_sender, recipient, cachefn, msg, all, msgtext)
+            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext)
         else:
             log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (precedence, sender,))
             err = 1
@@ -1064,9 +1068,10 @@ def handler():
                 recipient = recipient.strip()
 
         if   options.action == 'confirm':
-            result = confirm(sender, recipient, conf.remail_sender)   # use remail for forwarding
+            result = confirm(sender, recipient, conf.remail_sender)   # doesn't look at sender, I think
         elif options.action == 'dmarc-rewrite':
-            result = dmarc_rewrite(sender, recipient)
+#            result = dmarc_rewrite(sender, recipient, remail=True)
+            result = dmarc_rewrite(conf.remail_sender, recipient, remail=True) # use remail sender
         elif options.action == 'dmarc-reverse':
             result = dmarc_reverse(sender, recipient)
         else:

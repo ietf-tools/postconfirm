@@ -57,6 +57,15 @@ class Testing:
         print msg,
         print "======"
 
+    def getlistinfo(self):
+        """
+        fake listinfo per mailman
+        """
+        listinfo = {
+            'ietf': { 'archive': True },
+            'iesg': { 'archive': False }
+            }
+        return listinfo
     
 conf = Config() # make an instance
 

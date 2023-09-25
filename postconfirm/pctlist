@@ -3,18 +3,34 @@
 # run pctests
 set -v
 
-# forward to group
-./pctest.py -f johnl@taugh.com confirm blurch-chairs@ietf.org < testmsg1 > tmout1 && diff testmsg1 tmout1
+# forward to group, dkim should be ok
+if ./pctest.py -f johnl@taugh.com confirm blurch-chairs@ietf.org < testmsg1 > tmout1
+then
+ diff testmsg1 tmout1
+ dkimverify < tmout1
+fi
 
-# forward to list
-#./pctest.py -f johnl@taugh.com confirm blurch@ietf.org < testmsg4 > tmout4 && diff testmsg4 tmout4
+# no rewrite, DKIM should be OK
+if ./pctest.py -f johnl@taugh.com dmarc-rewrite blurch@ietf.org < testmsg2 > tmout2
+then
+  diff testmsg2 tmout2
+  sed -e '/^===/d' tmout2 | dkimverify
+fi
 
-# no rewrite
-#./pctest.py -f johnl@taugh.com dmarc-rewrite blurch@ietf.org < testmsg2 > tmout2 && diff testmsg2 tmout2
+# do rewrite, OK to rewrap
+if ./pctest.py -f johnl@examp1e.com dmarc-rewrite blurch@ietf.org < testmsg3 > tmout3
+then
+ diff testmsg3 tmout3
+fi
 
-# do rewrite
+# list with archive, don't rewrite
+if ./pctest.py -f johnl@examp1e.com confirm ietf@ietf.org < testmsg4> tmout4a
+then
+ diff testmsg4 tmout4a
+fi
 
-./pctest.py -f johnl@examp1e.com dmarc-rewrite blurch@ietf.org < testmsg3 > tmout3 && diff testmsg3 tmout3
-
-./pctest.py -f johnl@examp1e.com confirm blurch@ietf.org < testmsg3> tmout3a && diff testmsg3 tmout3a
-
+# lsit without archive
+if ./pctest.py -f johnl@examp1e.com confirm iesg@ietf.org < testmsg5> tmout5a
+then
+ diff testmsg5 tmout5a
+fi
