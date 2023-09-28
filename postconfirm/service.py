@@ -556,10 +556,7 @@ def forward_cached_post(cachefn):
     text = file.read()
     file.close()
     msg = email.message_from_string(text)
-
-    if testing:
-        print >> sys.stderr, "=== forward %s %s" % (msg['List-ID'], msg['DKIM-Signature'])
-    if msg['List-Id'] or msg['DKIM-Signature']: # don't rewrite forwards if signed
+    if msg['List-Id']:
         sys.stdout.write(text)
     else:
         dmarc_rewrite(None, None, text=text,remail=False) # ignores sender/recipients if not remail
@@ -571,7 +568,7 @@ def forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext):
     # forward directly to list, do DMARC rewrite otherwise
     log(syslog.LOG_DEBUG, "Forwarding from whitelisted <%s> to %s" % (sender, recipient))
     if all:
-        if msg['List-Id'] or msg['DKIM-Signature']: # don't rewrite if signed
+        if msg['List-Id']:
             sys.stdout.write(msgtext)
         else:
             dmarc_rewrite(None, None, text=msgtext,remail=False) # ignores sender/recipients if not remail
