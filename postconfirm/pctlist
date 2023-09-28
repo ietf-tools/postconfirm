@@ -17,10 +17,17 @@ then
   sed -e '/^===/d' tmout2 | dkimverify
 fi
 
-# do rewrite, OK to rewrap
-if ./pctest.py -f johnl@examp1e.com dmarc-rewrite blurch@ietf.org < testmsg3 > tmout3
+# do not rewrite because signed
+if ./pctest.py -f johnl@examp1e.com confirm blurch@ietf.org < testmsg3 > tmout3
 then
  diff testmsg3 tmout3
+  sed -e '/^===/d' tmout3 | dkimverify
+fi
+
+# do rewrite, OK to rewrap
+if ./pctest.py -f johnl@examp1e.com confirm blurch@ietf.org < testmsg3ns > tmout3ns
+then
+ diff testmsg3ns tmout3ns
 fi
 
 # list with archive, don't rewrite

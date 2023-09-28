@@ -1,5 +1,5 @@
 CFLAGS=
-OFLAGS=-pthread -fno-strict-aliasing -DNDEBUG -g -fwrapv -O2 -fPIC -I/usr/include/python2.7
+OFLAGS=-pthread -fno-strict-aliasing -DNDEBUG -g -fwrapv -O2 -fPIC -I/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7
 WFLAGS=-Waggregate-return -Wall -Wcast-align -Wcast-qual -Wconversion -Werror -Wmissing-declarations -Wmissing-prototypes -Wnested-externs -Wpointer-arith -Wredundant-decls -Wstrict-prototypes -Wwrite-strings
 SOFLAGS=-pthread -shared -Wl,-O1 -Wl,-Bsymbolic-functions 
 
