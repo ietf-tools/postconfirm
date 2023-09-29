@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version="0.41.0"
+version="0.41.1"
 
 # --- Configuration variables ---
 
@@ -15,6 +15,9 @@ SENDMAIL_BIN=/usr/sbin/sendmail
 
 # Where we store mailman commands identified as spam
 SPAM_STASH=/a/postconfirm/cache
+
+# forwarding alias
+FORWARDER=forwardingalgorithm@ietf.org
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
@@ -101,8 +104,10 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
 
     if   [ $errnum == 0 ]; then
 	if [ "$action" = filter ]; then
-	    note "Input forwarded to MTA ($SENDMAIL_BIN -f $SENDER $dest@$domain)"
-	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $out
+#	    note "Input forwarded to MTA ($SENDMAIL_BIN -f $SENDER $dest@$domain)"
+#	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $out
+	    note "Input forwarded to MTA ($SENDMAIL_BIN -f $FORWARDER $dest@$domain)"
+	    $SENDMAIL_BIN -f "$FORWARDER" "$dest@$domain" < $out
 	else
 	    note "Input forwarded to mailman ($MAILMAN_BIN $action $dest)"
 	    $MAILMAN_BIN "$action" "$dest" < $out
@@ -113,7 +118,8 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
     else
 	if [ "$action" = filter ]; then
 	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to MTA"
-	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $tmp
+#	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $tmp
+	    $SENDMAIL_BIN -f "$FORWARDER" "$dest@$domain" < $tmp
 	else
 	    echo "$FILTER_BIN failure (error $errnum) -- input forwarded to mailman"
 	    $MAILMAN_BIN "$action" "$dest" < $tmp
