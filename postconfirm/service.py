@@ -373,10 +373,11 @@ def cache_mail():
             else:
                 log("Listinfo[%s]['archive'] = %s" % (list, listinfo[list]['archive']))
 
-        # fake the Unix from
-        now = datetime.datetime.now()
-        unixfrom = 'From nobody %s\n' % now.strftime('%a %b %d %H:%M:%S %Y')
-        out.write(unixfrom)
+        # fake the Unix from if not already there
+        if not text.startswith('From '):
+            now = datetime.datetime.now()
+            unixfrom = 'From nobody %s\n' % now.strftime('%a %b %d %H:%M:%S %Y')
+            out.write(unixfrom)
         out.write(text)
 #        out.write(msg.as_string(unixfrom=True))
     else:
