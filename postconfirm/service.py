@@ -74,10 +74,10 @@ conf = {}
 listinfo = {}
 pid  = None
 allowlist = set([])
-blacklist = set([])
+blocklist = set([])
 #bouncelist = {}
 allowregex = None
-blackregex = None
+blockregex = None
 hashkey  = None
 
 # ------------------------------------------------------------------------------
@@ -120,18 +120,18 @@ def read_regexes(files):
     return regex
 
 # ------------------------------------------------------------------------------
-def read_blacklist(files):
-    global blacklist
+def read_blocklist(files):
+    global blocklist
 
-    blacklist = set([])
+    blocklist = set([])
     for file in files:
         if os.path.exists(file):
             file = open(file)
             entries = set(file.read().lower().split())
-            blacklist |= entries
+            blocklist |= entries
             file.close()
-            log("Read %s blacklist entries from %s\n" % (len(entries), file.name))
-    log("Blacklist size: %s" % (len(blacklist)))
+            log("Read %s blocklist entries from %s\n" % (len(entries), file.name))
+    log("blocklist size: %s" % (len(blocklist)))
 
 # ------------------------------------------------------------------------------
 def read_listinfo():
@@ -186,7 +186,7 @@ def read_listinfo():
 # ------------------------------------------------------------------------------
 def read_data():
     global allowregex
-    global blackregex
+    global blockregex
     global listinfo
     
     t1 = time.time()
@@ -201,12 +201,12 @@ def read_data():
         log("IOError: %s" % e)
 
     try:
-        read_blacklist(list(conf.blacklists))
+        read_blocklist(list(conf.blocklists))
     except Exception as e:
         log("IOError: %s" % e)
 
     try:
-        blackregex = read_regexes(list(conf.blackregex))
+        blockregex = read_regexes(list(conf.blockregex))
     except Exception as e:
         log("IOError: %s" % e)
 
@@ -452,10 +452,10 @@ def request_confirmation(sender, recipient, cachefn, msg):
         os.unlink(cachefn)
         return 1
 
-    if sender.lower() in blacklist or (blackregex and re.match(blackregex, sender.lower())):
+    if sender.lower() in blocklist or (blockregex and re.match(blockregex, sender.lower())):
         if testing:
-            print >>sys.stderr, "Skipped confirmation from blacklisted <%s>" % (sender,)
-        log(syslog.LOG_INFO, "Skipped confirmation from blacklisted <%s>" % (sender,))
+            print >>sys.stderr, "Skipped confirmation from blocklisted <%s>" % (sender,)
+        log(syslog.LOG_INFO, "Skipped confirmation from blocklisted <%s>" % (sender,))
         os.unlink(cachefn)
         return 1
 

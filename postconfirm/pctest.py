@@ -37,8 +37,8 @@ class Config(dict):
     allowlists = ['allowlist']
     confirmlist = 'confirmlist'
     allowregex = ('allowregex')
-    blacklists = ('blacklist')
-    blackregex = ('blackregex')
+    blocklists = ('blocklist')
+    blockregex = ('blockregex')
     archive_url_pattern = "http://mailarchive.ietf.org/arch/msg/%(list)s/%(hash)s"
     bulk_regex = "(junk|list|bulk|auto_reply)"
     auto_submitted_regex = "^auto-"
