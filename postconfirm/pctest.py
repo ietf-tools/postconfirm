@@ -34,9 +34,9 @@ class ConfigMail: # conf.dmarc
 class Config(dict):
     mail_cache_dir = 'cache'
     key_file = 'hash.key'
-    whitelists = ['whitelist']
+    allowlists = ['allowlist']
     confirmlist = 'confirmlist'
-    whiteregex = ('whiteregex')
+    allowregex = ('allowregex')
     blacklists = ('blacklist')
     blackregex = ('blackregex')
     archive_url_pattern = "http://mailarchive.ietf.org/arch/msg/%(list)s/%(hash)s"

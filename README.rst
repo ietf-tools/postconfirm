@@ -16,7 +16,7 @@ intended as a front-end to mailing lists. It provides
 funcitonality which is a subset of TMDA, but is adapted to
 high-volume usage and does not have anywhere near all the bells
 and whistles which TMDA has. On the other hand, since the
-whitelist lookup is done by the long-running server part, the
+allowlist lookup is done by the long-running server part, the
 overhead of doing a verification that a poster has a confirmed
 address is much smaller than for TMDA.  This makes it a factor
 1000 or more faster than TMDA in production, with a memory footprint

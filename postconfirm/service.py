@@ -2,9 +2,9 @@
 
 """ The handler which constitute the actual service.
 
-    Provides whitelist lookups, and generation and verification of
+    Provides allowlist lookups, and generation and verification of
     confirmation requests.  Incoming emails are read on stdin, emails from
-    whitelisted or confirmed senders are written to stdout.  Emails are cached
+    allowlisted or confirmed senders are written to stdout.  Emails are cached
     in a cache directory which is expected to be cleaned out regularly by a
     cronjob.
 
@@ -73,26 +73,26 @@ def filetext(file):
 conf = {}
 listinfo = {}
 pid  = None
-whitelist = set([])
+allowlist = set([])
 blacklist = set([])
 #bouncelist = {}
-whiteregex = None
+allowregex = None
 blackregex = None
 hashkey  = None
 
 # ------------------------------------------------------------------------------
-def read_whitelist(files):
-    global whitelist
+def read_allowlist(files):
+    global allowlist
 
-    whitelist = set([])
+    allowlist = set([])
     for file in files:
         if os.path.exists(file):
             file = open(file)
             entries = set(file.read().lower().split())
-            whitelist |= entries
+            allowlist |= entries
             file.close()
-            log("Read %s whitelist entries from %s\n" % (len(entries), file.name))
-    log("Whitelist size: %s" % (len(whitelist)))
+            log("Read %s allowlist entries from %s\n" % (len(entries), file.name))
+    log("allowlist size: %s" % (len(allowlist)))
 
 # ------------------------------------------------------------------------------
 def read_regexes(files):
@@ -107,7 +107,7 @@ def read_regexes(files):
                 try:
                     re.compile(entry)
                 except Exception, e:
-                    err("Invalid regex (not added to whitelist): %s\n  Exception: %s" % (entry, e))
+                    err("Invalid regex (not added to allowlist): %s\n  Exception: %s" % (entry, e))
                 else:
                     if not entry in regexlist:
                         regexlist.append(entry)
@@ -185,18 +185,18 @@ def read_listinfo():
 
 # ------------------------------------------------------------------------------
 def read_data():
-    global whiteregex
+    global allowregex
     global blackregex
     global listinfo
     
     t1 = time.time()
     try:
-        read_whitelist(list(conf.whitelists) + [ conf.confirmlist ])
+        read_allowlist(list(conf.allowlists) + [ conf.confirmlist ])
     except Exception as e:
         log("IOError: %s" % e)
 
     try:
-        whiteregex = read_regexes(list(conf.whiteregex))
+        allowregex = read_regexes(list(conf.allowregex))
     except Exception as e:
         log("IOError: %s" % e)
 
@@ -511,13 +511,13 @@ def verify_confirmation(sender, recipient, msg):
     if not valid_hash(sender, recipient, filename, hash):
         return 1
 
-    # We have a valid confirmation -- update the whitelist and the
+    # We have a valid confirmation -- update the allowlist and the
     # confirmation file
-    if sender.lower() in whitelist:
-        log(syslog.LOG_INFO, "Already in whitelist: <%s>" % (sender, ))
+    if sender.lower() in allowlist:
+        log(syslog.LOG_INFO, "Already in allowlist: <%s>" % (sender, ))
     else:
-        log(syslog.LOG_INFO, "Adding <%s> to whitelist" % (sender, ))
-        whitelist.add(sender)
+        log(syslog.LOG_INFO, "Adding <%s> to allowlist" % (sender, ))
+        allowlist.add(sender)
         file = open(conf.confirmlist, "a")
         file.write("%s\n" % sender)
         file.close()
@@ -566,10 +566,10 @@ def forward_cached_post(cachefn):
     os.unlink(cachefn)
 
 # ------------------------------------------------------------------------------
-def forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext):
+def forward_allowlisted_post(sender, recipient, cachefn, msg, all, msgtext):
     # all is always true here, sender and recipient ignored
     # forward directly to list, do DMARC rewrite otherwise
-    log(syslog.LOG_DEBUG, "Forwarding from whitelisted <%s> to %s" % (sender, recipient))
+    log(syslog.LOG_DEBUG, "Forwarding from allowlisted <%s> to %s" % (sender, recipient))
     if all:
         if msg['List-Id'] or msg['DKIM-Signature']: # don't rewrite if signed
             sys.stdout.write(msgtext)
@@ -607,11 +607,11 @@ def parse_options():
       funcitonality which is a subset of TMDA, but is adapted to
       high-volume usage and does not have anywhere near all the bells
       and whistles which TMDA has. On the other hand, since the
-      whitelist lookup is done by the long-running server part, the
+      allowlist lookup is done by the long-running server part, the
       overhead of doing a verification that a poster has a confirmed
       address is much smaller than for TMDA.
 
-      Early tests indicate that with a whitelist of 16000 entries a lookup
+      Early tests indicate that with a allowlist of 16000 entries a lookup
       costs about 0.01 seconds and about ~5 Mbytes for the server daemon, in
       contrast whith TMDA which cost between ~10s and ~600s and ~98 Mb *per
       lookup* as it was set up in front of the IETF lists.
@@ -630,7 +630,7 @@ def parse_options():
          postconfirmc <==> postconfirmd
              |
              v
-         postconfirm/mailman wrapper [white] -> Mailman
+         postconfirm/mailman wrapper [allow] -> Mailman
            [grey]
              |
              v
@@ -654,7 +654,7 @@ def parse_options():
       3. If the precedence matches the bulk_regex setting in the
          configuration file, then:
 
-         a. if the envelope sender is in the whitelist or the white_regex
+         a. if the envelope sender is in the allowlist or the allow_regex
              list, then the message is forwarded directly.
 
          b. if not, the receipt of a bulk message is logged, and no further
@@ -663,7 +663,7 @@ def parse_options():
       4. If the message has an auto-submitted header, and the value matches
          the auto_submitted_regex in the configuration file, then:
 
-         a. if the envelope sender is in the whitelist or the white_regex
+         a. if the envelope sender is in the allowlist or the allow_regex
             list, then the message is forwarded directly.
 
          b. if not, the receipt of a bulk message is logged, and no further
@@ -673,12 +673,12 @@ def parse_options():
          email subject, the confirmation is processed, and then:
 
          a. if the confirmation is valid, the held message is forwarded,
-            and the confirmed address is added to the whitelist.
+            and the confirmed address is added to the allowlist.
 
          b. if not, the failed confirmation is logged, and the message
             is saved.
 
-      6. If the envelope sender is in the whitelist or the white_regex list,
+      6. If the envelope sender is in the allowlist or the allow_regex list,
          the message is forwarded.
 
       7. If there was no match earlier, a confirmation request is sent out
@@ -757,13 +757,13 @@ def parse_options():
 # ------------------------------------------------------------------------------
 
 def confirm(sender, recipient, remail_sender):
-    """ Lookup email sender in whitelist; forward or cache email pending confirmation.
+    """ Lookup email sender in allowlist; forward or cache email pending confirmation.
 
         It is expected that the following environment variables set:
         SENDER   : Envelope MAIL FROM address
         RECIPIENT: Envelope RCPT TO address
 
-        The service handler looks up the sender in the whitelist, and if found,
+        The service handler looks up the sender in the allowlist, and if found,
         the mail on stdin is passed out on stdout.  If not found, the mail is
         instead cached in the configured mail cache directory, and a
         confirmation request is sent to the sender address.  If a reply to the
@@ -810,20 +810,20 @@ def confirm(sender, recipient, remail_sender):
     elif precedence_match:
         if testing:
             print >> sys.stderr, "=== precedence match",precedence
-        if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+        if   sender.lower() in allowlist or (allowregex and re.match(allowregex, sender.lower())):
             if testing:
-                print >> sys.stderr, "=== precedence forward whitelisted %s" % cachefn
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext)
+                print >> sys.stderr, "=== precedence forward allowlisted %s" % cachefn
+            err = forward_allowlisted_post(sender, recipient, cachefn, msg, all, msgtext)
         else:
             log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (precedence, sender,))
             err = 1
         # return code for "don't forward"
         # leaves message in cache till cleaned out        
     elif auto_submitted_match:
-        if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+        if   sender.lower() in allowlist or (allowregex and re.match(allowregex, sender.lower())):
             if testing:
-                print >> sys.stderr, "=== autosubmitted forward whitelisted %s" % cachefn
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext)
+                print >> sys.stderr, "=== autosubmitted forward allowlisted %s" % cachefn
+            err = forward_allowlisted_post(sender, recipient, cachefn, msg, all, msgtext)
         else:
             log(syslog.LOG_INFO, "Skipped confirmation for %s message from <%s>" % (auto_submitted, sender,))
             err = 1
@@ -836,10 +836,10 @@ def confirm(sender, recipient, remail_sender):
         else:
             os.unlink(cachefn)
     else:
-        if   sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+        if   sender.lower() in allowlist or (allowregex and re.match(allowregex, sender.lower())):
             if testing:
-                print >> sys.stderr, "=== foward_whitelisted_post %s" % cachefn
-            err = forward_whitelisted_post(sender, recipient, cachefn, msg, all, msgtext)
+                print >> sys.stderr, "=== foward_allowlisted_post %s" % cachefn
+            err = forward_allowlisted_post(sender, recipient, cachefn, msg, all, msgtext)
         else:
             if testing:
                 print >> sys.stderr, "=== request confirmation %s %s %s" % (sender, recipient, cachefn)
@@ -1001,7 +1001,7 @@ def dmarc_reverse(sender, recipient):
 
     text = sys.stdin.read()
     msg = email.message_from_string(text)
-    if sender.lower() in whitelist or (whiteregex and re.match(whiteregex, sender.lower())):
+    if sender.lower() in allowlist or (allowregex and re.match(allowregex, sender.lower())):
         for field in [ 'To', 'Cc', ]:
             addresses = msg.get_all(field)
             if addresses:
@@ -1022,7 +1022,7 @@ def dmarc_reverse(sender, recipient):
         send_smtp(sender, recipients, msg.as_string(), conf.dmarc.reverse.smtp.host, conf.dmarc.reverse.smtp.port)
         return 0
     else:
-        log("Received a dmarc-rewrite message from a sender not in whitelist or confirmed list: %s" % sender)
+        log("Received a dmarc-rewrite message from a sender not in allowlist or confirmed list: %s" % sender)
         return 4
 
 

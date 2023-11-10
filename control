@@ -14,7 +14,7 @@ Description: Email confirmation system
         Postconfirm requests and verifies one-time email sender confirmation.
 	It is intended as a front-end to mailing lists, and provides
 	funcitonality which is a subset of TMDA, but is adapted to high-volume
-	usage. Since the whitelist lookup is done by a long-running server
+	usage. Since the allowlist lookup is done by a long-running server
 	part, the overhead of doing a verification that a poster has a
 	confirmed address is much smaller than for TMDA, by a factor 1000 or
 	more in cpu load and a factor 20 or more in memory footprint.
