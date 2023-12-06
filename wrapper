@@ -1,27 +1,30 @@
 #!/bin/bash
-
-version="0.41.0"
+TMPDIR=/a/tmp export TMPDIR
+version="0.42"
 
 # --- Configuration variables ---
 
-# the filter executable:
-FILTER_BIN=/usr/bin/postconfirmc
-
-# Mailman's distributed mailman executable:
-MAILMAN_BIN=/usr/lib/mailman/mail/mailman
-
-# Mail handler executable
-SENDMAIL_BIN=/usr/sbin/sendmail
-
-# Where we store mailman commands identified as spam
-SPAM_STASH=/a/postconfirm/cache
+. wraper-param
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
    export RUNNING=$0
-   $0 "$@" 2>&1 | logger -t postconfirmw
+   $0 "$@" 2>&1 | logger -i -t postconfirmw
    exit ${PIPESTATUS[0]}
 fi
+
+# check nonfilter lists
+# array nfcheck set in wrapparam
+function nfcheck() {
+	local l
+
+	for l in ${NFLISTS[@]}
+	do
+		case "$1" in $l) return 0 ;;
+		esac
+	done
+	return 1
+}
 
 # Command line arguments
 ## The 'action' argument is set by the caller.  Mailman will set 'action' to one
@@ -47,7 +50,6 @@ function die() {
 # ----------------
 function note() { 
     [ "$DEBUG" ] && echo -e "$*"
-    logger -i -p user.info -t postconfirmw "$*"
 }
 
 # --- Start of script proper ---
@@ -66,13 +68,14 @@ if [ "$DEBUG" ]; then
 fi
 unset HOME
 
-[ -d $SPAM_STASH ] || mkdir -p $SPAM_STASH
-
 SEND_LOCALPART=${SENDER%@*}
 RECV_LOCALPART=${RECIPIENT%@*}
 
 if [ "${SEND_LOCALPART##*-}" = "bounces" -a "${RECV_LOCALPART##*-}" = "owner" ]; then
     note "Mailman response piped directly to mailman"
+    $MAILMAN_BIN "$action" "$dest"
+elif nfcheck "$dest" ; then
+    note "List message not sent through postconfirm"
     $MAILMAN_BIN "$action" "$dest"
 elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" = filter ]; then
     # Using a temp file to hold the message isn't pretty, but we need to catch the exit
@@ -90,7 +93,8 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
 	cat - | formail -I "List-ID: <$dest.ietf.org>" > $tmp
     fi
 
-    note "Input piped to postconfirm: '$FILTER_BIN confirm'"
+    note "Input piped to postconfirm"
+    echo "from=<$SENDER> to=<$RECIPIENT> piped to '$FILTER_BIN confirm'"
     $FILTER_BIN confirm < $tmp 2>$err | /a/postconfirm/insert_expanded_headers "$dest" > $out
     errnum=${PIPESTATUS[0]}
     
@@ -101,10 +105,10 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
 
     if   [ $errnum == 0 ]; then
 	if [ "$action" = filter ]; then
-	    note "Input forwarded to MTA ($SENDMAIL_BIN -f $SENDER $dest@$domain)"
-	    $SENDMAIL_BIN -f "$SENDER" "$dest@$domain" < $out
+	    note "Input forwarded to MTA with new sender"
+	    $SENDMAIL_BIN -f "$FORWARDSENDER" "$dest@$domain" < $out
 	else
-	    note "Input forwarded to mailman ($MAILMAN_BIN $action $dest)"
+	    note "Input forwarded to mailman"
 	    $MAILMAN_BIN "$action" "$dest" < $out
         fi
     elif [ $errnum == 1 ]; then
@@ -133,7 +137,7 @@ else
 	mv $cmd $actn
 	echo "Command '$action': <$SENDER> -> $dest  piped to mailman after spam check, saved as $actn"
 	$MAILMAN_BIN "$action" "$dest" < $actn
-	#rm -f $cmd
+	rm -f $cmd
     fi
 fi
 

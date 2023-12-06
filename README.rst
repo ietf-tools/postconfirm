@@ -22,4 +22,29 @@ address is much smaller than for TMDA.  This makes it a factor
 1000 or more faster than TMDA in production, with a memory footprint
 a factor 20 smaller.
 
+Configuration
+------------
+The `wrapper` script in this project will import `wrapper-param` which is expected to contain the following configuration:
+```
+# this file of parameters included by the wrapper script
+
+# the filter executable:
+FILTER_BIN=/usr/bin/postconfirmc
+
+# Mailman's distributed mailman executable:
+MAILMAN_BIN=/usr/lib/mailman/mail/mailman
+
+# Mail handler executable
+SENDMAIL_BIN=/usr/sbin/sendmail
+
+# Where we store mailman commands identified as spam
+SPAM_STASH=/path/to/stash
+
+# our forwarding alias
+FORWARDSENDER=sender@domain.example
+
+# the lists that do not go through postconfirm
+NFLISTS=(listname1 listname2 listname3)
+
+```
 
