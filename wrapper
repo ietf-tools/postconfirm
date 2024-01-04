@@ -34,8 +34,8 @@ fi
 #sjt then 'aliases' pipes to "$wrapper $action_suffix $list_mailbox", if the
 #sjt action suffix is missing, it is set to "post".  $wrapper is always
 #sjt "/a/postconfirm/mailman" in Mailman's alias table.
-#sjt In the postfix tables in /a/postfix/ (linked from /etc/postfix, see ops-postfix
-#sjt repo), both group-aliases and draft-aliases
+#sjt In the postfix tables in /a/postfix/ (linked from /etc/postfix, see
+#sjt ops-postfix repo), both group-aliases and draft-aliases
 #sjt 
 action="$1"
 dest="$2"
