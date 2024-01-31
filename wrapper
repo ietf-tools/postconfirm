@@ -4,7 +4,7 @@ version="0.42"
 
 # --- Configuration variables ---
 
-. wraper-param
+. /a/postconfirm/wraper-param
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
