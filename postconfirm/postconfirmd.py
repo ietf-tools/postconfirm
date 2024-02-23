@@ -14,11 +14,11 @@ DESCRIPTION
         front-end to mailing lists. It provides funcitonality which is a
         subset of TMDA, but is adapted to high-volume usage and does not have
         anywhere near all the bells and whistles which TMDA has. On the other
-        hand, since the whitelist lookup is done by the long-running server
+        hand, since the allowlist lookup is done by the long-running server
         part, the overhead of doing a verification that a poster has a
         confirmed address is much smaller than for TMDA.
 
-        Early tests indicate that with a whitelist of 16000 entries a lookup
+        Early tests indicate that with a allowlist of 16000 entries a lookup
         costs about 0.01 seconds and about ~5 Mbytes for the server daemon, in
         contrast whith TMDA which cost between ~10s and ~600s and ~98 Mb *per
         lookup* as it was set up in front of the IETF lists.
@@ -34,7 +34,7 @@ DESCRIPTION
            postconfirmc <==> postconfirmd
                |
                v
-           postconfirm/mailman wrapper [white] -> Mailman
+           postconfirm/mailman wrapper [allow] -> Mailman
              [grey]
                |
                v
@@ -58,7 +58,7 @@ DESCRIPTION
         3. If the precedence matches the bulk_regex setting in the
            configuration file, then:
            
-           a. if the envelope sender is in the whitelist or the white_regex
+           a. if the envelope sender is in the allowlist or the allow_regex
                list, then the message is forwarded directly.
 
            b. if not, the receipt of a bulk message is logged, and no further
@@ -67,7 +67,7 @@ DESCRIPTION
         4. If the message has an auto-submitted header, and the value matches
            the auto_submitted_regex in the configuration file, then:
            
-           a. if the envelope sender is in the whitelist or the white_regex
+           a. if the envelope sender is in the allowlist or the allow_regex
               list, then the message is forwarded directly.
 
            b. if not, the receipt of a bulk message is logged, and no further
@@ -77,12 +77,12 @@ DESCRIPTION
            email subject, the confirmation is processed, and then:
            
            a. if the confirmation is valid, the held message is forwarded,
-              and the confirmed address is added to the whitelist.
+              and the confirmed address is added to the allowlist.
 
            b. if not, the failed confirmation is logged, and the message
               is saved.
 
-        6. If the envelope sender is in the whitelist or the white_regex list,
+        6. If the envelope sender is in the allowlist or the allow_regex list,
            the message is forwarded.
 
         7. If there was no match earlier, a confirmation request is sent out
@@ -288,7 +288,7 @@ def mkfile(file):
 # ------------------------------------------------------------------------------
 # Some assertions
 assert os.path.exists(conf.mail_template), "Could not find mail template at configured path: %s" % conf.mail_template
-assert type(conf.whitelists) == config.Sequence, "The whitelist configuration should be a list of file paths."
+assert type(conf.allowlists) == config.Sequence, "The allowlist configuration should be a list of file paths."
 
 # ------------------------------------------------------------------------------
 # Create directories and do initialization, as needed:

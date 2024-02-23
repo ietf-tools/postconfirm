@@ -10,7 +10,7 @@ of the poster's envelope-from address.
 
 It provides functonality which is a subset of TMDA, but is adapted to
 high-volume usage and does not have anywhere near all the bells and whistles
-which TMDA has. On the other hand, since the whitelist lookup is done by a
+which TMDA has. On the other hand, since the allowlist lookup is done by a
 long-running server part, the overhead of doing a verification that a poster
 has a confirmed address is much smaller than for TMDA (on the order of 0.01
 seconds per lookup vs. 10-600 seconds per lookup for TMDA, and ~5 MB total
@@ -33,9 +33,9 @@ eventually calls) Mailman's original binary, which takes action as follows:
   * Else if the action is 'post', 'owner', or 'admin', the email is checked
     by postconfirm:
    
-	- if the envelope-from is in a whitelist, the email is sent to Mailman
+	- if the envelope-from is in a allowlist, the email is sent to Mailman
 	- else if the email is a returned confirmation, the envelope-from is
-	  whitelisted, and the original email is taken from cache and sent to
+	  allowlisted, and the original email is taken from cache and sent to
 	  Mailman
 	- else the email is cached by postconfirm, and a posting confirmation
 	  email is sent to the envelope-from address.
@@ -45,22 +45,22 @@ eventually calls) Mailman's original binary, which takes action as follows:
 	- if the email is flagged as spam, it's saved in a spam folder
 	- else it's sent to mailman as a command
 
-Whitelist Files
+allowlist Files
 ---------------
 
-The daemon part reads its configuration and whitelist files on startup (and
-when receiving a SIGHUP).  There are multiple whitelist files, for different
+The daemon part reads its configuration and allowlist files on startup (and
+when receiving a SIGHUP).  There are multiple allowlist files, for different
 purposes:
 
-  * One whitelist file is re-generated nightly from all the subscriber
+  * One allowlist file is re-generated nightly from all the subscriber
     addresses to the IETF mailing lists hosted on the IETF Mail Server.
     People with the same email envelope-from as From: header field doesn't
     have to do anything in order to post.
 
-  * One whitelist file holds a list of people who have received a confirmation
+  * One allowlist file holds a list of people who have received a confirmation
     request from postconfirm and replied to it, thus confirming their
     envelope-from posting address
 
-  * One whitelist file holds a set of manually edited whitelist regular
-    expressions, in order to be able to efficiently whitelist groups of
+  * One allowlist file holds a set of manually edited allowlist regular
+    expressions, in order to be able to efficiently allowlist groups of
     addresses.

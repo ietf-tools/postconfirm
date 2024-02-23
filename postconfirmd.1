@@ -16,11 +16,11 @@ program which handles email confirmations. It is intended as a
 front-end to mailing lists. It provides funcitonality which is a
 subset of TMDA, but is adapted to high-volume usage and does not have
 anywhere near all the bells and whistles which TMDA has. On the other
-hand, since the whitelist lookup is done by the long-running server
+hand, since the allowlist lookup is done by the long-running server
 part, the overhead of doing a verification that a poster has a
 confirmed address is much smaller than for TMDA.
 .PP
-Early tests indicate that with a whitelist of 16000 entries a lookup
+Early tests indicate that with a allowlist of 16000 entries a lookup
 costs about 0.01 seconds and about ~5 Mbytes for the server daemon, in
 contrast whith TMDA which cost between ~10s and ~600s and ~98 Mb *per
 lookup* as it was set up in front of the IETF lists.
@@ -38,7 +38,7 @@ Somewhat simplified, the flow for regular mail is as follows:
            postconfirmc <==> postconfirmd
                |
                v
-           postconfirm/mailman wrapper [white] -> Mailman
+           postconfirm/mailman wrapper [allow] -> Mailman
              [grey]
                |
                v
@@ -65,7 +65,7 @@ If the precedence matches the bulk_regex setting in the
 configuration file, then:
 .RS
 .PP
-a. if the envelope sender is in the whitelist or the white_regex
+a. if the envelope sender is in the allowlist or the allow_regex
 list, then the message is forwarded directly.
 .PP
 b. if not, the receipt of a bulk message is logged, and no further
@@ -76,7 +76,7 @@ If the message has an auto-submitted header, and the value matches
 the auto_submitted_regex in the configuration file, then:
 .RS
 .PP
-a. if the envelope sender is in the whitelist or the white_regex
+a. if the envelope sender is in the allowlist or the allow_regex
 list, then the message is forwarded directly.
 .PP
 b. if not, the receipt of a bulk message is logged, and no further
@@ -88,13 +88,13 @@ email subject, the confirmation is processed, and then:
 .RS
 .PP
 a. if the confirmation is valid, the held message is forwarded,
-and the confirmed address is added to the whitelist.
+and the confirmed address is added to the allowlist.
 .PP
 b. if not, the failed confirmation is logged, and the message
 is saved.
 .RE
 .IP 6. 4
-If the envelope sender is in the whitelist or the white_regex list,
+If the envelope sender is in the allowlist or the allow_regex list,
 the message is forwarded.
 .IP 7. 4
 If there was no match earlier, a confirmation request is sent out
