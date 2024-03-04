@@ -1,12 +1,12 @@
 from .sender import Sender
-from .db_handler import SenderDb
+from .handler_db import HandlerDb
 
 handlers = {
-    "db": SenderDb,
+    "db": HandlerDb,
     "_default": "db"
 }
 
-def get_default_handler() -> SenderDb:
+def get_default_handler() -> any:
     global handler
 
     if not handler:

@@ -2,7 +2,7 @@ from typing import Optional, Iterable, Tuple
 from .typing import Action
 
 
-class SenderDb:
+class HandlerDb:
     def __init__(self) -> None:
         self.connection = None
 
