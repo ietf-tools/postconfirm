@@ -1,59 +1,8 @@
 from datetime import datetime
 import hashlib
 import re
-from typing import TypeAlias, Literal, Optional, Iterable, Tuple
-
-Action: TypeAlias = Literal["unknown", "confirm", "accept", "reject", "discard"]
-
-class SenderDb:
-    def __init__(self) -> None:
-        self.connection = None
-
-    # FIXME: Get the correct type.
-    def _get_connection(self) -> any:
-        """
-        Return the database connection.
-        """
-        pass
-
-    def get_action_for_sender(self, sender: str) -> Optional[Tuple[str, str]]:
-        """
-        Return any action for the given sender
-        """
-        pass
-
-    def get_patterns(self) -> Iterable[Tuple[str, str, str]]:
-        """
-        Returns any pattern-type actions
-        """
-        pass
-
-    def set_action_for_sender(self, sender: str, action: str, ref: str) -> None:
-        """
-        Sets the action for the sender
-        """
-        pass
-
-    def stash_email_for_sender(self, sender: str, msg: str, recipients: list[str]) -> None:
-        """
-        Stores the message for the sender
-        """
-        pass
-
-    def unstash_emails_for_sender(self, sender: str) -> Iterable[Tuple[str, list[str]]]:
-        """
-        Yields the messages for the sender
-        """
-        pass
-
-
-def get_default_handler() -> SenderDb:
-    global handler
-
-    if not handler:
-        handler = SenderDb()
-
-    return handler
+from typing import Optional, Iterable
+from .typing import Action
 
 
 class Sender:
@@ -77,12 +26,12 @@ class Sender:
     waiting for a confirmation request first. 
     """
 
-    def __init__(self, email: str, handler: any = None) -> None:
+    def __init__(self, email: str, handler: any) -> None:
         self.email = email
         self.reference = None
         self.action = None
 
-        self.handler = handler if handler else get_default_handler()
+        self.handler = handler
     
     def get_sender(self) -> str:
         """
