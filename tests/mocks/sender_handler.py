@@ -1,15 +1,14 @@
 defined_sender = "specific@example.com"
 
+
 class MockHandler:
     def __init__(self):
-        self.actions = {
-            defined_sender: ("accept", None)
-        }
+        self.actions = {defined_sender: ("accept", None)}
 
         self.stash = {
             defined_sender: [
                 ("a message", ["a@b.c", "d@e.f"]),
-                ("a message", ["a@b.c", "d@e.f"])
+                ("a message", ["a@b.c", "d@e.f"]),
             ]
         }
 
@@ -20,10 +19,12 @@ class MockHandler:
             return None
 
     def get_patterns(self):
-        return iter([
-            (r".*@example\.com", "confirm", "foo"),
-            (r".*@nowhere\.example\.com", "reject", None)
-        ])
+        return iter(
+            [
+                (r".*@example\.com", "confirm", "foo"),
+                (r".*@nowhere\.example\.com", "reject", None),
+            ]
+        )
 
     def set_action_for_sender(self, sender: str, action: str, ref: str):
         self.actions[sender] = (action, ref)

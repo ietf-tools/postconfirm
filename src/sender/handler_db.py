@@ -32,7 +32,9 @@ class HandlerDb:
         """
         pass
 
-    def stash_email_for_sender(self, sender: str, msg: str, recipients: list[str]) -> None:
+    def stash_email_for_sender(
+        self, sender: str, msg: str, recipients: list[str]
+    ) -> None:
         """
         Stores the message for the sender
         """
@@ -43,5 +45,3 @@ class HandlerDb:
         Yields the messages for the sender
         """
         pass
-
-

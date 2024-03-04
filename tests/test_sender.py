@@ -17,7 +17,7 @@ class TestSender:
         assert action == "accept"
 
     def test_it_gets_action_based_on_pattern(self):
-        sender = Sender('noone@example.com', MockHandler())
+        sender = Sender("noone@example.com", MockHandler())
         action = sender.get_action()
         assert action == "confirm"
 

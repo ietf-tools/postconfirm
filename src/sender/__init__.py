@@ -1,10 +1,8 @@
 from .handler_db import HandlerDb
 from .sender import Sender
 
-handlers = {
-    "db": HandlerDb,
-    "_default": "db"
-}
+handlers = {"db": HandlerDb, "_default": "db"}
+
 
 def get_default_handler() -> any:
     global handler
@@ -14,6 +12,7 @@ def get_default_handler() -> any:
         handler = handler_name()
 
     return handler
+
 
 def get_sender(email) -> Sender:
     return Sender(email, get_default_handler())
