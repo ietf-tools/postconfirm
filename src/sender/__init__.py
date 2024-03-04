@@ -1,5 +1,5 @@
-from .sender import Sender
 from .handler_db import HandlerDb
+from .sender import Sender
 
 handlers = {
     "db": HandlerDb,

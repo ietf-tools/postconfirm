@@ -1,5 +1,4 @@
 from src.sender import Sender
-
 from tests.mocks.sender_handler import MockHandler, defined_sender
 
 

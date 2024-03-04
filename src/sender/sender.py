@@ -1,7 +1,8 @@
-from datetime import datetime
 import hashlib
 import re
-from typing import Optional, Iterable
+from datetime import datetime
+from typing import Iterable, Optional
+
 from .typing import Action
 
 

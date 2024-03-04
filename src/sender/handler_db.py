@@ -1,4 +1,5 @@
-from typing import Optional, Iterable, Tuple
+from typing import Iterable, Optional, Tuple
+
 from .typing import Action
 
 
