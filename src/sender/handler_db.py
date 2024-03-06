@@ -1,3 +1,4 @@
+from pyscopg import Connection
 from typing import Iterable, Optional, Tuple
 
 from .typing import Action
@@ -7,8 +8,7 @@ class HandlerDb:
     def __init__(self) -> None:
         self.connection = None
 
-    # FIXME: Get the correct type.
-    def _get_connection(self) -> any:
+    def _get_connection(self) -> Connection:
         """
         Return the database connection.
         """
