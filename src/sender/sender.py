@@ -34,7 +34,7 @@ class Sender:
 
         self.handler = handler
 
-    def get_sender(self) -> str:
+    def get_email(self) -> str:
         """
         Return the sender email address.
         """
@@ -93,27 +93,27 @@ class Sender:
 
         return self.reference
 
-    def stash_email(self, msg: str, recipients: list[str]) -> str:
+    def stash_message(self, msg: str, recipients: list[str]) -> str:
         """
         Stashes the email message so that it can be released after confirmation.
 
         Returns the reference to be used for the confirmation
         """
-        self.handler.stash_email_for_sender(self.email, msg, recipients)
+        self.handler.stash_message_for_sender(self.email, msg, recipients)
 
         if self.action != "confirm":
             return self.set_action("confirm")
         else:
             return self.get_ref()
 
-    def unstash_emails(self) -> Iterable[tuple[str, str]]:
+    def unstash_messages(self) -> Iterable[tuple[str, str]]:
         """
         Iterates over the stashed email messages, yielding a tuple
         of the message and the recipients.
 
         After each message has been returned it will be removed from the stash.
         """
-        for stash in self.handler.unstash_emails_for_sender(self.email):
+        for stash in self.handler.unstash_messages_for_sender(self.email):
             yield stash
 
     def validate_ref(self, ref: str) -> bool:

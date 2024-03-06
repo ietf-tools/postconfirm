@@ -32,7 +32,7 @@ class HandlerDb:
         """
         pass
 
-    def stash_email_for_sender(
+    def stash_message_for_sender(
         self, sender: str, msg: str, recipients: list[str]
     ) -> None:
         """
@@ -40,7 +40,7 @@ class HandlerDb:
         """
         pass
 
-    def unstash_emails_for_sender(self, sender: str) -> Iterable[Tuple[str, list[str]]]:
+    def unstash_messages_for_sender(self, sender: str) -> Iterable[Tuple[str, list[str]]]:
         """
         Yields the messages for the sender
         """

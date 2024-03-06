@@ -9,7 +9,7 @@ class TestSender:
 
     def test_it_tracks_the_sender_email(self):
         sender = Sender(defined_sender, MockHandler())
-        assert sender.get_sender() == defined_sender
+        assert sender.get_email() == defined_sender
 
     def test_it_gets_action_based_on_match(self):
         sender = Sender(defined_sender, MockHandler())

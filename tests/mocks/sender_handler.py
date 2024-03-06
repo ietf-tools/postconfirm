@@ -29,7 +29,7 @@ class MockHandler:
     def set_action_for_sender(self, sender: str, action: str, ref: str):
         self.actions[sender] = (action, ref)
 
-    def stash_email_for_sender(self, sender: str, msg: str, recipients: list[str]):
+    def stash_message_for_sender(self, sender: str, msg: str, recipients: list[str]):
         data = (msg, recipients)
 
         if sender in self.stash:
@@ -37,7 +37,7 @@ class MockHandler:
         else:
             self.stash[sender] = [data]
 
-    def unstash_emails_for_sender(self, sender: str):
+    def unstash_messages_for_sender(self, sender: str):
         if sender in self.stash:
             emails = self.stash[sender]
             del self.stash[sender]
