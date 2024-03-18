@@ -65,12 +65,12 @@ class TestSender:
 
     def test_emails_can_be_unstashed(self):
         sender = Sender(defined_sender, MockHandler())
-        email_data = list(sender.unstash_emails())
+        email_data = list(sender.unstash_messages())
         assert len(email_data) == 2
 
     def test_emails_can_be_stashed(self):
         sender = Sender(defined_sender, MockHandler())
-        ref = sender.stash_email("foo", ["e@f.g"])
-        email_data = list(sender.unstash_emails())
+        ref = sender.stash_message("foo", ["e@f.g"])
+        email_data = list(sender.unstash_messages())
         assert len(email_data) == 3
         assert ref
