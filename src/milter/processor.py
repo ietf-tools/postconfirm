@@ -4,7 +4,8 @@ from typing import Union
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
 
-from src.sender import get_sender
+from src.remailer import Remailer
+from src.sender import Sender, get_sender
 
 
 def recipient_requires_challenge(recipients: list) -> bool:
