@@ -1,4 +1,4 @@
-from pyscopg import Connection
+from psycopg import Connection
 from typing import Iterable, Optional, Tuple
 
 from .typing import Action
