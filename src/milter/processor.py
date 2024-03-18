@@ -1,4 +1,5 @@
 import re
+from typing import Union
 
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
@@ -45,7 +46,7 @@ def get_challenge_reference_from_subject(subject: str) -> str:
 
 # FIXME: Should this be in a class?
 @Runner
-async def processor(session: Session) -> Accept|Reject|Discard:
+async def processor(session: Session) -> Union[Accept, Reject, Discard]:
     """
     The milter processor for postconfirm.
 
