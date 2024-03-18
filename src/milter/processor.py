@@ -57,12 +57,12 @@ async def processor(session: Session) -> Union[Accept, Reject, Discard]:
     the challenge the sender is examined. In the simple cases the action
     will be either "accept", "reject", or "discard" and the appropriate
     response can be sent immediately.
-    
+
     If the sender is "unknown" then we start the challenge process, which
     includes stashing the mail and indicating that the original should be
     discarded. The sender will be marked as "confirm" and the challenge
-    sent. If the sender is "confirm" then we do not need to resend the 
-    challenge and proceed with just stashing the mail and discarding the 
+    sent. If the sender is "confirm" then we do not need to resend the
+    challenge and proceed with just stashing the mail and discarding the
     original.
 
     The other case is that this is a challenge response. If the sender is
@@ -94,11 +94,11 @@ async def processor(session: Session) -> Union[Accept, Reject, Discard]:
         async for header in headers:
             if header.name == "Subject":
                 mail_subject = header.value.tobytes().decode()
-            
+
             mail_headers.append(header)
-    
+
     is_challenge_response = subject_is_challenge_response(mail_subject)
- 
+
     # Now we can determine the course of action
     if requires_challenge and not is_challenge_response:
         # Process the sender
@@ -137,7 +137,7 @@ async def processor(session: Session) -> Union[Accept, Reject, Discard]:
             if not sender.validate_ref(reference):
                 # Reject the message
                 return Reject()
-            
+
             # Valid, so release the messages
             with Remailer() as mailer:
                 for (recipients, message) in sender.unstash_emails():
