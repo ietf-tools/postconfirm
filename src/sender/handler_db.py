@@ -1,5 +1,6 @@
-from psycopg import Connection
 from typing import Iterable, Optional, Tuple
+
+from psycopg import Connection
 
 from .typing import Action
 

@@ -1,6 +1,7 @@
-from kilter.protocol import Discard, Reject, Accept
-from kilter.service import Runner, Session
 import re
+
+from kilter.protocol import Accept, Discard, Reject
+from kilter.service import Runner, Session
 
 from src.sender import get_sender
 
