@@ -8,6 +8,9 @@ from src.remailer import Remailer
 from src.sender import Sender, get_sender
 
 
+LINE_SEP = "\n"
+
+
 class Processor:
     def recipient_requires_challenge(self, recipients: list) -> bool:
         # FIXME: Implement recipient_requires_challenge
@@ -25,9 +28,7 @@ class Processor:
 
 
     def reform_email_text(self, headers: list, body_chunks: list) -> str:
-        line_sep = "\n"
-
-        return f"{line_sep.join(self.form_header(header for header in headers))}{line_sep}{line_sep}{''.join(body_chunks)}"
+        return f"{LINE_SEP.join(self.form_header(header for header in headers))}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 
     def send_challenge(self, sender: Sender, reference: str) -> None:
