@@ -1,6 +1,7 @@
 import re
 from typing import Union
 
+import config
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
 
@@ -12,6 +13,9 @@ LINE_SEP = "\n"
 
 
 class Processor:
+    def __init__(self, settings: config) -> None:
+        self.settings = settings
+
     def recipient_requires_challenge(self, recipients: list) -> bool:
         # FIXME: Implement recipient_requires_challenge
         return True
@@ -134,7 +138,7 @@ class Processor:
                     return Reject()
 
                 # Valid, so release the messages
-                with Remailer() as mailer:
+                with Remailer(self.config) as mailer:
                     for (recipients, message) in sender.unstash_emails():
                         mailer.sendmail(sender.get_email(), recipients, message)
 
