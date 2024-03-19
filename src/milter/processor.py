@@ -73,7 +73,7 @@ class Processor:
 
         # First we set up our Sender
         mail_from = await session.envelope_from()
-        sender = self.get_sender(mail_from)
+        sender = get_sender(mail_from)
 
         # Then we can gather the recipients. The order is determined by the
         # SMTP protocol.
