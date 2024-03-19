@@ -16,20 +16,16 @@ class Processor:
         # FIXME: Implement recipient_requires_challenge
         return True
 
-
     def subject_is_challenge_response(self, subject: str) -> bool:
         reference = self.get_challenge_reference_from_subject(subject)
 
         return True if reference else False
 
-
     def form_header(self, header) -> str:
         return f"{header.name}:{header.value.tobytes().decode()}"
 
-
     def reform_email_text(self, headers: list, body_chunks: list) -> str:
         return f"{LINE_SEP.join(self.form_header(header for header in headers))}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
-
 
     def send_challenge(self, sender: Sender, reference: str) -> None:
         """
@@ -38,14 +34,12 @@ class Processor:
         """
         pass
 
-
     def get_challenge_reference_from_subject(self, subject: str) -> str:
         """
         Extracts the challenge reference from the subject
         """
         match = re.match(r"challenge: ([a-f0-9]+)", subject, re.IGNORECASE)
         return match[1] if match else None
-
 
     @Runner
     async def processor(self, session: Session) -> Union[Accept, Reject, Discard]:
