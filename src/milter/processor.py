@@ -9,28 +9,28 @@ from src.sender import Sender, get_sender
 
 
 class Processor:
-    def recipient_requires_challenge(recipients: list) -> bool:
+    def recipient_requires_challenge(self, recipients: list) -> bool:
         # FIXME: Implement recipient_requires_challenge
         return True
 
 
-    def subject_is_challenge_response(subject: str) -> bool:
-        reference = get_challenge_reference_from_subject(subject)
+    def subject_is_challenge_response(self, subject: str) -> bool:
+        reference = self.get_challenge_reference_from_subject(subject)
 
         return True if reference else False
 
 
-    def form_header(header) -> str:
+    def form_header(self, header) -> str:
         return f"{header.name}:{header.value.tobytes().decode()}"
 
 
-    def reform_email_text(headers: list, body_chunks: list) -> str:
+    def reform_email_text(self, headers: list, body_chunks: list) -> str:
         line_sep = "\n"
 
-        return f"{line_sep.join(form_header(header for header in headers))}{line_sep}{line_sep}{''.join(body_chunks)}"
+        return f"{line_sep.join(self.form_header(header for header in headers))}{line_sep}{line_sep}{''.join(body_chunks)}"
 
 
-    def send_challenge(sender: Sender, reference: str) -> None:
+    def send_challenge(self, sender: Sender, reference: str) -> None:
         """
         Send the challenge email to the sender, with the reference
         and then update the sender to indicate this.
@@ -38,7 +38,7 @@ class Processor:
         pass
 
 
-    def get_challenge_reference_from_subject(subject: str) -> str:
+    def get_challenge_reference_from_subject(self, subject: str) -> str:
         """
         Extracts the challenge reference from the subject
         """
@@ -47,7 +47,7 @@ class Processor:
 
 
     @Runner
-    async def processor(session: Session) -> Union[Accept, Reject, Discard]:
+    async def processor(self, session: Session) -> Union[Accept, Reject, Discard]:
         """
         The milter processor for postconfirm.
 
@@ -74,7 +74,7 @@ class Processor:
 
         # First we set up our Sender
         mail_from = await session.envelope_from()
-        sender = get_sender(mail_from)
+        sender = self.get_sender(mail_from)
 
         # Then we can gather the recipients. The order is determined by the
         # SMTP protocol.
@@ -82,7 +82,7 @@ class Processor:
             recipient async for recipient in session.envelope_recipients()
         ]
 
-        requires_challenge = recipient_requires_challenge(mail_recipients)
+        requires_challenge = self.recipient_requires_challenge(mail_recipients)
 
         # In order to tell if this is a challenge response we need the
         # subject, which means collecting all the headers.
@@ -97,7 +97,7 @@ class Processor:
 
                 mail_headers.append(header)
 
-        is_challenge_response = subject_is_challenge_response(mail_subject)
+        is_challenge_response = self.subject_is_challenge_response(mail_subject)
 
         # Now we can determine the course of action
         if requires_challenge and not is_challenge_response:
@@ -118,12 +118,12 @@ class Processor:
                 async for chunk in body:
                     mail_body.append(chunk.tobytes().decode())
 
-            mail_as_text = reform_email_text(mail_headers, mail_body)
+            mail_as_text = self.reform_email_text(mail_headers, mail_body)
 
             challenge_reference = sender.stash_email(mail_as_text, mail_recipients)
 
             if action == "unknown":
-                send_challenge(sender, challenge_reference)
+                self.send_challenge(sender, challenge_reference)
 
             return Discard()
 
@@ -132,7 +132,7 @@ class Processor:
             action = sender.get_action()
 
             if action == "confirm":
-                reference = get_challenge_reference_from_subject(mail_subject)
+                reference = self.get_challenge_reference_from_subject(mail_subject)
 
                 if not sender.validate_ref(reference):
                     # Reject the message
