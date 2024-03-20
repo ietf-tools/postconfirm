@@ -46,7 +46,7 @@ class Processor:
         return match[1] if match else None
 
     @Runner
-    async def processor(self, session: Session) -> Union[Accept, Reject, Discard]:
+    async def handle(self, session: Session) -> Union[Accept, Reject, Discard]:
         """
         The milter processor for postconfirm.
 
