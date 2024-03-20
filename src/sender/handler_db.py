@@ -41,7 +41,9 @@ class HandlerDb:
         """
         pass
 
-    def unstash_messages_for_sender(self, sender: str) -> Iterable[Tuple[str, list[str]]]:
+    def unstash_messages_for_sender(
+        self, sender: str
+    ) -> Iterable[Tuple[str, list[str]]]:
         """
         Yields the messages for the sender
         """

@@ -47,7 +47,9 @@ class TestRemailer:
             assert mailer.smtp is connection
 
     @pytest.mark.skip("Issue with the docmd mocking/connections being the same")
-    @patch("src.remailer.remailer.SMTP",)
+    @patch(
+        "src.remailer.remailer.SMTP",
+    )
     def test_it_handles_disconnection(self, mock_smtp):
         mock_smtp.return_value.docmd = Mock(side_effect=SMTPServerDisconnected)
 
@@ -69,7 +71,9 @@ class TestRemailer:
 
         mailer.sendmail(recipients, message)
 
-        mock_smtp.return_value.sendmail.assert_called_with(mailer.sender_from, recipients, message)
+        mock_smtp.return_value.sendmail.assert_called_with(
+            mailer.sender_from, recipients, message
+        )
 
     def test_the_sender_can_be_overridden(self):
         with patch("src.remailer.remailer.SMTP", autospec=True) as mock_smtp:
@@ -81,4 +85,6 @@ class TestRemailer:
 
             mailer.sendmail(recipients, message, sender)
 
-            mock_smtp.return_value.sendmail.assert_called_with(sender, recipients, message)
+            mock_smtp.return_value.sendmail.assert_called_with(
+                sender, recipients, message
+            )
