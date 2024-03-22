@@ -2,7 +2,7 @@ import json
 from typing import Iterable, Optional, Tuple
 
 from config import Config
-from psycopg import Connection
+import psycopg
 
 from .typing import Action
 
@@ -14,7 +14,7 @@ class HandlerDb:
         self.connection = None
         self.app_config = app_config if app_config else services["config"]
 
-    def _get_connection(self) -> Connection:
+    def _get_connection(self) -> psycopg.Connection:
         """
         Return the database connection.
         """
