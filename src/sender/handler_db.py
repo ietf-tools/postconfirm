@@ -102,7 +102,7 @@ class HandlerDb:
                 return True
 
             except Exception as e:
-                print (f"ERROR setting sender: {e}", flush=True)
+                print(f"ERROR setting sender: {e}", flush=True)
                 return False
 
     def stash_message_for_sender(
@@ -127,7 +127,7 @@ class HandlerDb:
                 return True
 
             except Exception as e:
-                print (f"ERROR stashing mail: {e}")
+                print(f"ERROR stashing mail: {e}")
                 return False
 
     def unstash_messages_for_sender(
@@ -164,5 +164,5 @@ class HandlerDb:
                     connection.commit()
 
             except Exception as e:
-                print (f"ERROR unstashing mails: {e}", flush=True)
+                print(f"ERROR unstashing mails: {e}", flush=True)
                 return
