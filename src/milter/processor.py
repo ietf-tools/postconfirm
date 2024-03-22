@@ -1,7 +1,6 @@
 import re
 from typing import Union
 
-import config
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
 
@@ -13,9 +12,6 @@ LINE_SEP = "\n"
 
 
 class Processor:
-    def __init__(self, settings: config) -> None:
-        self.settings = settings
-
     def recipient_requires_challenge(self, recipients: list) -> bool:
         # FIXME: Implement recipient_requires_challenge
         return True
@@ -46,7 +42,8 @@ class Processor:
         return match[1] if match else None
 
     @Runner
-    async def handle(self, session: Session) -> Union[Accept, Reject, Discard]:
+    @staticmethod
+    async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         """
         The milter processor for postconfirm.
 
@@ -70,6 +67,8 @@ class Processor:
         response fails then the mail is rejected. If the sender is in any
         other state then the response is simply discarded.
         """
+
+        global services
 
         # First we set up our Sender
         mail_from = await session.envelope_from()
@@ -138,7 +137,7 @@ class Processor:
                     return Reject()
 
                 # Valid, so release the messages
-                with Remailer(self.config) as mailer:
+                with services["remailer"] as mailer:
                     for (recipients, message) in sender.unstash_emails():
                         mailer.sendmail(sender.get_email(), recipients, message)
 
