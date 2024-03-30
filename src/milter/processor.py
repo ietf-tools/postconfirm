@@ -61,6 +61,15 @@ def get_challenge_reference_from_subject(subject: str) -> str:
     return match[1] if match else None
 
 
+def cleanup_mail(email) -> str:
+    matches = re.match(r'^(.*<)?([^>]*)(>.*)?$', email.strip())
+
+    if matches:
+        return matches[2]
+    else:
+        return email
+
+
 @Runner
 async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     """
@@ -88,13 +97,13 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     """
 
     # First we set up our Sender
-    mail_from = await session.envelope_from()
+    mail_from = cleanup_mail(await session.envelope_from())
     sender = get_sender(mail_from)
 
     # Then we can gather the recipients. The order is determined by the
     # SMTP protocol.
     mail_recipients = [
-        recipient async for recipient in session.envelope_recipients()
+        cleanup_mail(recipient) async for recipient in session.envelope_recipients()
     ]
 
     requires_challenge = recipient_requires_challenge(mail_recipients)
