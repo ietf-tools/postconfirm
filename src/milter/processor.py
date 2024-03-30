@@ -35,7 +35,7 @@ def reform_email_text(headers: list, body_chunks: list) -> str:
     return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 
-def send_challenge(sender: Sender, subject: str, recipient: str, challenge_id: str, reference: str) -> None:
+def send_challenge(sender: Sender, subject: str, recipients: list[str], challenge_id: str, reference: str) -> None:
     """
     Send the challenge email to the sender, with the reference
     and then update the sender to indicate this.
@@ -47,7 +47,7 @@ def send_challenge(sender: Sender, subject: str, recipient: str, challenge_id: s
         message = chevron.render(template, {
             "subject": subject,
             "sender_address": sender.email,
-            "recipient_address": recipient,
+            "recipient_address": ", ".join(recipients),
             "admin_address": admin_address,
             "id": challenge_id,
         })
@@ -106,7 +106,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         cleanup_mail(recipient) async for recipient in session.envelope_recipients()
     ]
 
-    requires_challenge = recipient_requires_challenge(mail_recipients)
+    challenge_recipients = recipient_requires_challenge(mail_recipients)
 
     # In order to tell if this is a challenge response we need the
     # subject, which means collecting all the headers.
@@ -126,7 +126,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     is_challenge_response = subject_is_challenge_response(mail_subject)
 
     # Now we can determine the course of action
-    if requires_challenge and not is_challenge_response:
+    if challenge_recipients and not is_challenge_response:
         # Process the sender
         action = sender.get_action()
 
@@ -149,7 +149,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         challenge_reference = sender.stash_message(mail_as_text, mail_recipients)
 
         if action == "unknown":
-            send_challenge(sender, mail_subject, ", ".join(requires_challenge), 'id-here', challenge_reference)
+            send_challenge(sender, mail_subject, challenge_recipients, 'id-here', challenge_reference)
 
         return Discard()
 
