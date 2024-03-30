@@ -1,5 +1,5 @@
-from .processor import Processor
+from .processor import handle
 
 __all__ = [
-    "Processor"
+    "handle"
 ]

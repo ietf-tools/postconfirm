@@ -4,7 +4,7 @@ import logging
 from anyio import create_tcp_listener, run
 import config
 
-from src.milter import Processor
+from src.milter import handle
 from src.remailer import Remailer
 
 services = {}
@@ -33,8 +33,7 @@ async def main():
     # Start the listener
     listen_port = args.port or app_config.get("milter_port", 1999)
     listener = await create_tcp_listener(local_port=listen_port)
-    await listener.serve(Processor.handle)
-
+    await listener.serve(handle)
 
 if __name__ == "__main__":
     run(main)
