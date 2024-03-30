@@ -7,8 +7,7 @@ import config
 from src.milter import handle
 from src.remailer import Remailer
 
-services = {}
-
+from src import services
 
 async def main():
     parser = argparse.ArgumentParser(

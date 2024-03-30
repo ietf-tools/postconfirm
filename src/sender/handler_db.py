@@ -6,11 +6,10 @@ import psycopg
 
 from .typing import Action
 
+from src import services
 
 class HandlerDb:
     def __init__(self, app_config: Config = None) -> None:
-        global services
-
         self.connection = None
         self.app_config = app_config if app_config else services["config"]
 
