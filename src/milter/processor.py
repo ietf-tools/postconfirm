@@ -16,6 +16,7 @@ def recipient_requires_challenge(recipients: list) -> bool:
     # FIXME: Implement recipient_requires_challenge
     return True
 
+
 def subject_is_challenge_response(subject: str) -> bool:
     if not subject:
         return False
@@ -24,11 +25,14 @@ def subject_is_challenge_response(subject: str) -> bool:
 
     return True if reference else False
 
+
 def form_header(header) -> str:
     return f"{header[0]}:{header[1]}"
 
+
 def reform_email_text(headers: list, body_chunks: list) -> str:
     return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
+
 
 def send_challenge(sender: Sender, reference: str) -> None:
     """
@@ -37,12 +41,14 @@ def send_challenge(sender: Sender, reference: str) -> None:
     """
     pass
 
+
 def get_challenge_reference_from_subject(subject: str) -> str:
     """
     Extracts the challenge reference from the subject
     """
     match = re.match(r"challenge: ([a-f0-9]+)", subject, re.IGNORECASE)
     return match[1] if match else None
+
 
 @Runner
 async def handle(session: Session) -> Union[Accept, Reject, Discard]:

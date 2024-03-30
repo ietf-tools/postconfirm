@@ -8,6 +8,7 @@ from .typing import Action
 
 from src import services
 
+
 class HandlerDb:
     def __init__(self, app_config: Config = None) -> None:
         self.connection = None
