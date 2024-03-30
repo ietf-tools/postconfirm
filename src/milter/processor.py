@@ -6,6 +6,9 @@ from kilter.service import Runner, Session
 
 from src.sender import Sender, get_sender
 
+from src import services
+
+
 LINE_SEP = "\n"
 
 
