@@ -20,7 +20,7 @@ class HandlerDb:
         if not self.connection:
             try:
                 self.connection = psycopg.connect(
-                    database=self.app_config.get("db.name", "postconfirm"),
+                    dbname=self.app_config.get("db.name", "postconfirm"),
                     user=self.app_config.get("db.user", "postconfirm"),
                     password=self.app_config.get("db.password", None),
                     host=self.app_config.get("db.host", "localhost"),
