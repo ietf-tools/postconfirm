@@ -17,6 +17,9 @@ def recipient_requires_challenge(recipients: list) -> bool:
     return True
 
 def subject_is_challenge_response(subject: str) -> bool:
+    if not subject:
+        return False
+
     reference = get_challenge_reference_from_subject(subject)
 
     return True if reference else False
