@@ -49,13 +49,25 @@ def send_challenge(sender: Sender, subject: str, recipients: list[str], challeng
     admin_address = services["app_config"].get("admin_address")
 
     with open(template_name, "r") as template:
-        message = chevron.render(template, {
+        message_text = chevron.render(template, {
             "subject": subject,
             "sender_address": sender.email,
             "recipient_address": ", ".join(recipients),
             "admin_address": admin_address,
             "id": challenge_id,
         })
+
+        headers = [
+            ("From", f" {recipients[0]}"),
+            ("To", f" {sender.email}"),
+            ("Subject", get_challenge_subject(reference)),
+        ]
+
+        challenge_message = reform_email_text(headers, [message_text])
+
+        with services["remailer"] as mailer:
+            # This should probably have a sender
+            mailer.sendmail([sender.email], challenge_message)
 
 
 def get_challenge_reference_from_subject(subject: str) -> str:
