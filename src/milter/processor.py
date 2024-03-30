@@ -120,7 +120,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         mail_as_text = reform_email_text(mail_headers, mail_body)
 
-        challenge_reference = sender.stash_email(mail_as_text, mail_recipients)
+        challenge_reference = sender.stash_message(mail_as_text, mail_recipients)
 
         if action == "unknown":
             send_challenge(sender, challenge_reference)
@@ -140,7 +140,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
             # Valid, so release the messages
             with services["remailer"] as mailer:
-                for (recipients, message) in sender.unstash_emails():
+                for (recipients, message) in sender.unstash_messages():
                     mailer.sendmail(sender.get_email(), recipients, message)
 
     # Anything else is just accepted
