@@ -36,7 +36,7 @@ class HandlerDb:
         """
         Return any action for the given sender
         """
-        with self.get_connection().cursor() as cursor:
+        with self._get_connection().cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
@@ -62,7 +62,7 @@ class HandlerDb:
         """
         Returns any pattern-type actions
         """
-        with self.get_connection().cursor() as cursor:
+        with self._get_connection().cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
@@ -83,7 +83,7 @@ class HandlerDb:
         """
         Sets the action for the sender
         """
-        connection = self.get_connection()
+        connection = self._get_connection()
         with connection.cursor() as cursor:
             try:
                 cursor.execute(
@@ -110,7 +110,7 @@ class HandlerDb:
         """
         Stores the message for the sender
         """
-        connection = self.get_connection()
+        connection = self._get_connection()
         with connection.cursor() as cursor:
             try:
                 cursor.execute(
@@ -135,7 +135,7 @@ class HandlerDb:
         """
         Yields the messages for the sender
         """
-        connection = self.get_connection()
+        connection = self._get_connection()
 
         with connection.cursor() as cursor:
             try:
