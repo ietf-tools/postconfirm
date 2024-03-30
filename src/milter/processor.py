@@ -25,10 +25,10 @@ def subject_is_challenge_response(subject: str) -> bool:
     return True if reference else False
 
 def form_header(header) -> str:
-    return f"{header.name}:{header.value.tobytes().decode()}"
+    return f"{header[0]}:{header[1]}"
 
 def reform_email_text(headers: list, body_chunks: list) -> str:
-    return f"{LINE_SEP.join(form_header(header for header in headers))}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
+    return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 def send_challenge(sender: Sender, reference: str) -> None:
     """
@@ -90,10 +90,12 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     async with session.headers as headers:
         async for header in headers:
-            if header.name == "Subject":
-                mail_subject = header.value.tobytes().decode()
+            value = header.value.tobytes().decode()
 
-            mail_headers.append(header)
+            if header.name == "Subject":
+                mail_subject = value
+
+            mail_headers.append((header.name, value))
 
     is_challenge_response = subject_is_challenge_response(mail_subject)
 
