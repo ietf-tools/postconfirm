@@ -119,7 +119,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             value = header.value.tobytes().decode()
 
             if header.name == "Subject":
-                mail_subject = value
+                mail_subject = value.lstrip()
 
             mail_headers.append((header.name, value))
 
