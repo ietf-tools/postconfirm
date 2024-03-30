@@ -27,6 +27,11 @@ def subject_is_challenge_response(subject: str) -> bool:
     return True if reference else False
 
 
+def get_challenge_subject(reference: str) -> str:
+    # This needs to add in the leading space.
+    return f" Confirm: ::{reference}"
+
+
 def form_header(header) -> str:
     return f"{header[0]}:{header[1]}"
 
@@ -57,7 +62,7 @@ def get_challenge_reference_from_subject(subject: str) -> str:
     """
     Extracts the challenge reference from the subject
     """
-    match = re.match(r"challenge: ([a-f0-9]+)", subject, re.IGNORECASE)
+    match = re.match(r"Confirm: ::([a-f0-9]+)", subject, re.IGNORECASE)
     return match[1] if match else None
 
 
