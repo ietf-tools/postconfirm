@@ -1,6 +1,7 @@
 import re
 from typing import Union
 
+import chevron
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
 
@@ -12,9 +13,9 @@ from src import services
 LINE_SEP = "\n"
 
 
-def recipient_requires_challenge(recipients: list) -> bool:
+def recipient_requires_challenge(recipients: list) -> Union[False, list]:
     # FIXME: Implement recipient_requires_challenge
-    return True
+    return recipients
 
 
 def subject_is_challenge_response(subject: str) -> bool:
@@ -34,12 +35,22 @@ def reform_email_text(headers: list, body_chunks: list) -> str:
     return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 
-def send_challenge(sender: Sender, reference: str) -> None:
+def send_challenge(sender: Sender, subject: str, recipient: str, challenge_id: str, reference: str) -> None:
     """
     Send the challenge email to the sender, with the reference
     and then update the sender to indicate this.
     """
-    pass
+    template_name = services["app_config"].get("mail_template", "/etc/postconfirm/confirm.email.mustache")
+    admin_address = services["app_config"].get("admin_address")
+
+    with open(template_name, "r") as template:
+        message = chevron.render(template, {
+            "subject": subject,
+            "sender_address": sender.email,
+            "recipient_address": recipient,
+            "admin_address": admin_address,
+            "id": challenge_id,
+        })
 
 
 def get_challenge_reference_from_subject(subject: str) -> str:
@@ -129,7 +140,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         challenge_reference = sender.stash_message(mail_as_text, mail_recipients)
 
         if action == "unknown":
-            send_challenge(sender, challenge_reference)
+            send_challenge(sender, mail_subject, ", ".join(requires_challenge), 'id-here', challenge_reference)
 
         return Discard()
 
