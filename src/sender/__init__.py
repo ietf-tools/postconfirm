@@ -2,6 +2,7 @@ from .handler_db import HandlerDb
 from .sender import Sender
 
 handlers = {"db": HandlerDb, "_default": "db"}
+handler = None
 
 
 def get_default_handler() -> any:
@@ -9,7 +10,7 @@ def get_default_handler() -> any:
 
     if not handler:
         handler_name = handlers.get("_default", "db")
-        handler = handler_name()
+        handler = handlers[handler_name]()
 
     return handler
 
