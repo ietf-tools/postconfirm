@@ -85,6 +85,7 @@ def main():
         logger.debug("Adding new data")
 
         email_lists = [
+            ("confirmlist", "accept"),
             ("allowlists", "accept"),
             ("whitelists", "accept"),
             ("rejectlists", "reject"),
@@ -92,7 +93,12 @@ def main():
         ]
 
         for config_name, action in email_lists:
-            for list_name in app_config.get(config_name, []):
+            config_lists = app_config.get(config_name, [])
+
+            if isinstance(config_lists, str):
+                config_lists = [config_lists]
+
+            for list_name in config_lists:
                 logger.info("Processing list (type: %(type)s; file: %(file_name)s)", {
                     "type": action,
                     "file_name": list_name
