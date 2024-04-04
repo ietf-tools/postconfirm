@@ -125,6 +125,8 @@ def main():
 
                     add_pattern_list_entries(cursor, list_name, action, source_name)
 
+            connection.commit()
+
 
 if __name__ == "__main__":
     main()
