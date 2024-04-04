@@ -165,7 +165,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         challenge_reference = sender.stash_message(mail_as_text, mail_recipients)
 
-        if action == "unknown":
+        if action == "unknown" or action == "expired":
             send_challenge(sender, mail_subject, challenge_recipients, 'id-here', challenge_reference)
 
         return Discard()
