@@ -67,63 +67,63 @@ def main():
     }
 
     with psycopg.connect(**connect_args) as connection:
-        cursor = connection.cursor()
+        with connection.cursor() as cursor:
 
-        logger.debug("Clearing down old data")
+            logger.debug("Clearing down old data")
 
-        # Then delete the static data
-        cursor.execute(
-            """
-            TRUNCATE
-                senders_static
-            RESTART IDENTITY
-            """
-        )
+            # Then delete the static data
+            cursor.execute(
+                """
+                TRUNCATE
+                    senders_static
+                RESTART IDENTITY
+                """
+            )
 
-        # Then add the new data
+            # Then add the new data
 
-        logger.debug("Adding new data")
+            logger.debug("Adding new data")
 
-        email_lists = [
-            ("confirmlist", "accept"),
-            ("allowlists", "accept"),
-            ("whitelists", "accept"),
-            ("rejectlists", "reject"),
-            ("blacklists", "reject"),
-        ]
+            email_lists = [
+                ("confirmlist", "accept"),
+                ("allowlists", "accept"),
+                ("whitelists", "accept"),
+                ("rejectlists", "reject"),
+                ("blacklists", "reject"),
+            ]
 
-        for config_name, action in email_lists:
-            config_lists = app_config.get(config_name, [])
+            for config_name, action in email_lists:
+                config_lists = app_config.get(config_name, [])
 
-            if isinstance(config_lists, str):
-                config_lists = [config_lists]
+                if isinstance(config_lists, str):
+                    config_lists = [config_lists]
 
-            for list_name in config_lists:
-                logger.info("Processing list (type: %(type)s; file: %(file_name)s)", {
-                    "type": action,
-                    "file_name": list_name
-                })
-                source_name = basename(list_name)
+                for list_name in config_lists:
+                    logger.info("Processing list (type: %(type)s; file: %(file_name)s)", {
+                        "type": action,
+                        "file_name": list_name
+                    })
+                    source_name = basename(list_name)
 
-                add_email_list_entries(cursor, list_name, action, source_name)
+                    add_email_list_entries(cursor, list_name, action, source_name)
 
-        regex_lists = [
-            ("allowregex", "accept"),
-            ("whiteregex", "accept"),
-            ("rejectregex", "reject"),
-            ("blackregex", "reject"),
-        ]
+            regex_lists = [
+                ("allowregex", "accept"),
+                ("whiteregex", "accept"),
+                ("rejectregex", "reject"),
+                ("blackregex", "reject"),
+            ]
 
-        for config_name, action in regex_lists:
-            for list_name in app_config.get(config_name, []):
-                logger.info("Processing regex list (type: %(type)s; file: %(file_name)s)", {
-                    "type": action,
-                    "file_name": list_name
-                })
+            for config_name, action in regex_lists:
+                for list_name in app_config.get(config_name, []):
+                    logger.info("Processing regex list (type: %(type)s; file: %(file_name)s)", {
+                        "type": action,
+                        "file_name": list_name
+                    })
 
-                source_name = basename(list_name)
+                    source_name = basename(list_name)
 
-                add_pattern_list_entries(cursor, list_name, action, source_name)
+                    add_pattern_list_entries(cursor, list_name, action, source_name)
 
 
 if __name__ == "__main__":
