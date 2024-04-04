@@ -1,5 +1,5 @@
 import re
-from typing import Union
+from typing import Union, Optional
 
 import chevron
 from kilter.protocol import Accept, Discard, Reject
@@ -87,6 +87,54 @@ def cleanup_mail(email) -> str:
         return email
 
 
+async def extract_headers(session: Session) -> tuple[Optional[str], list]:
+    """
+    Extracts the headers from the message/session.
+
+    The subject is explicitly returned as the first parameter, if found.
+    All of the headers are then returned as a list.
+    """
+
+    mail_headers = []
+    mail_subject = None
+
+    async with session.headers as headers:
+        async for header in headers:
+            value = header.value.tobytes().decode()
+
+            if header.name == "Subject":
+                mail_subject = value.lstrip()
+
+            mail_headers.append((header.name, value))
+
+    return (mail_subject, mail_headers)
+
+
+async def extract_body(session: Session) -> list:
+    """
+    Extracts the body from the message/session.
+
+    This can appear in multiple chunks so this is returned as a list.
+    """
+
+    mail_body = []
+    async with session.body as body:
+        async for chunk in body:
+            mail_body.append(chunk.tobytes().decode())
+
+    return mail_body
+
+
+def release_messages(sender: Sender) -> None:
+    """
+    Releases the stashed messages relating to the sender.
+    """
+
+    with services["remailer"] as mailer:
+        for (recipients, message) in sender.unstash_messages():
+            mailer.sendmail(sender.get_email(), recipients, message)
+
+
 @Runner
 async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     """
@@ -128,17 +176,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     # In order to tell if this is a challenge response we need the
     # subject, which means collecting all the headers.
 
-    mail_headers = []
-    mail_subject = None
-
-    async with session.headers as headers:
-        async for header in headers:
-            value = header.value.tobytes().decode()
-
-            if header.name == "Subject":
-                mail_subject = value.lstrip()
-
-            mail_headers.append((header.name, value))
+    (mail_subject, mail_headers) = extract_headers(session)
 
     is_challenge_response = subject_is_challenge_response(mail_subject)
 
@@ -156,10 +194,8 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         # The remaining options are "unknown" or "confirm". In both cases
         # we need to stash the mail. That means completing the collection.
-        mail_body = []
-        async with session.body as body:
-            async for chunk in body:
-                mail_body.append(chunk.tobytes().decode())
+
+        mail_body = extract_body(session)
 
         mail_as_text = reform_email_text(mail_headers, mail_body)
 
@@ -182,9 +218,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
                 return Reject()
 
             # Valid, so release the messages
-            with services["remailer"] as mailer:
-                for (recipients, message) in sender.unstash_messages():
-                    mailer.sendmail(sender.get_email(), recipients, message)
+            release_messages(sender)
 
     # Anything else is just accepted
     return Accept()
