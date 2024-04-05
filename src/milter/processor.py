@@ -162,9 +162,10 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     Decisions are made on the basis of where the message is going to and
     then who the sender is, since not all messages will be covered by the
-    challenge system. Once we know that at least one destination requires
-    the challenge the sender is examined. In the simple cases the action
-    will be either "accept", "reject", or "discard" and the appropriate
+    challenge system. Bulk messages that would otherwise be challenged are
+    dropped. Once we know that at least one destination requires a 
+    challenge the sender is examined. In the simple cases the action will
+    be either "accept", "reject", or "discard" and the appropriate
     response can be sent immediately.
 
     If the sender is "unknown" then we start the challenge process, which
