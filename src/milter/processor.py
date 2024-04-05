@@ -200,7 +200,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     should_drop = message_should_be_dropped(mail_headers)
 
     # Now we can determine the course of action
-    if should_drop:
+    if challenge_recipients and should_drop:
         return Discard()
     
     elif challenge_recipients and not is_challenge_response:
