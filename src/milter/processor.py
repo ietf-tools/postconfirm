@@ -193,7 +193,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     # In order to tell if this is a challenge response we need the
     # subject, which means collecting all the headers.
 
-    (mail_subject, mail_headers) = extract_headers(session)
+    (mail_subject, mail_headers) = await extract_headers(session)
 
     is_challenge_response = subject_is_challenge_response(mail_subject)
 
