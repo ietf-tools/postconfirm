@@ -18,6 +18,23 @@ def recipient_requires_challenge(recipients: list) -> Union[False, list]:
     return recipients
 
 
+def message_should_be_dropped(headers: list[dict]) -> bool:
+    if "Precedence" not in header_drop_matchers:
+        header_drop_matchers["Precedence"] = re.compile(services["app_config"].get("bulk_regex", r"(junk|list|bulk|auto_reply)"))
+
+    if "Auto-Submitted" not in header_drop_matchers:
+        header_drop_matchers["Auto-Submitted"] = re.compile(services["app_config"].get("auto_submitted_regex", r"^auto-"))
+
+    for name, entry in headers:
+        if name in header_drop_matchers:
+            trimmed_entry = entry.lstrip()
+
+            if header_drop_matchers[name].search(trimmed_entry):
+                return False
+
+    return True  
+
+
 def subject_is_challenge_response(subject: str) -> bool:
     if not subject:
         return False
@@ -180,8 +197,13 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     is_challenge_response = subject_is_challenge_response(mail_subject)
 
+    should_drop = message_should_be_dropped(mail_headers)
+
     # Now we can determine the course of action
-    if challenge_recipients and not is_challenge_response:
+    if should_drop:
+        return Discard()
+    
+    elif challenge_recipients and not is_challenge_response:
         # Process the sender
         action = sender.get_action()
 
