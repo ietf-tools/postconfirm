@@ -13,6 +13,9 @@ from src import services
 LINE_SEP = "\n"
 
 
+header_drop_matchers = {}
+
+
 def recipient_requires_challenge(recipients: list) -> Union[False, list]:
     # FIXME: Implement recipient_requires_challenge
     return recipients
