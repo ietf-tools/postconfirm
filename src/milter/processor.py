@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Union, Optional
 
@@ -8,6 +9,9 @@ from kilter.service import Runner, Session
 from src.sender import Sender, get_sender
 
 from src import services
+
+
+logger = logging.getLogger(__name__)
 
 
 LINE_SEP = "\n"
@@ -33,6 +37,7 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
             trimmed_entry = entry.lstrip()
 
             if header_drop_matchers[name].search(trimmed_entry):
+                logger.debug("Dropping: header {name} matched {entry}", extra={"name": name, "entry": entry})
                 return False
 
     return True  
@@ -205,6 +210,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     # Now we can determine the course of action
     if challenge_recipients and should_drop:
+        logger.debug("Message flagged for challenge but also matched drop conditions")
         return Discard()
     
     elif challenge_recipients and not is_challenge_response:
@@ -212,10 +218,13 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         action = sender.get_action()
 
         if action == "accept":
+            logger.debug("Message flagged for challenge and sender -- %(sender)s -- marked for acceptance", {"sender": mail_from})
             return Accept()
         elif action == "reject":
+            logger.debug("Message flagged for challenge and sender marked for rejecting")
             return Reject()
         elif action == "discard":
+            logger.debug("Message flagged for challenge and sender marked for discarding")
             return Discard()
 
         # The remaining options are "unknown" or "confirm". In both cases
@@ -228,6 +237,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         challenge_reference = sender.stash_message(mail_as_text, mail_recipients)
 
         if action == "unknown" or action == "expired":
+            logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
             send_challenge(sender, mail_subject, challenge_recipients, 'id-here', challenge_reference)
 
         return Discard()
@@ -241,7 +251,10 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
             if not sender.validate_ref(reference):
                 # Reject the message
+                logger.debug("Message is a response but is not valid")
                 return Reject()
+
+            logger.debug("Message is a valid confirmation response")
 
             # Valid, so release the messages
             release_messages(sender)
