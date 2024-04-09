@@ -71,7 +71,11 @@ class Sender:
 
         if action_data:
             self.action = action_data[0]
-            self.references = action_data[1]
+            if self.references is None:
+                self.references = action_data[1]
+            elif action_data[1] is not None:
+                self.references = list(set(self.references).union(action_data[1]))
+            # Existing references are assumed to be good.
         else:
             self.action = "unknown"
             self.references = []
