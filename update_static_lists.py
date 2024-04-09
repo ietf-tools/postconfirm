@@ -1,6 +1,7 @@
 import argparse
 import logging
 from os.path import basename
+import re
 
 import config
 import psycopg
@@ -20,9 +21,22 @@ def add_email_list_entries(cursor, list_name: str, action: str, source_name: str
 
 def add_pattern_list_entries(cursor, list_name: str, action: str, source_name: str) -> None:
     with open(list_name, "r") as f:
+        line_counter = 0
         for entry in f:
-            add_list_entry(cursor, entry.strip(), action, source_name, "P")
+            line_counter += 1
 
+            try:
+                stripped_entry = entry.strip()
+                re.compile(stripped_entry)
+
+                add_list_entry(cursor, stripped_entry, action, source_name, "P")
+            except re.error as e:
+                logger.warning("Skipping invalid entry on %(line_counter)d of %(source)s: %(entry)s -- %(reason)s", {
+                                    "line_counter": line_counter,
+                                    "source": source_name,
+                                    "entry": stripped_entry,
+                                    "reason": e.msg
+                                })
 
 def add_list_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
     values = {
