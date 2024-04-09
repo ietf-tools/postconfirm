@@ -230,7 +230,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         # The remaining options are "unknown" or "confirm". In both cases
         # we need to stash the mail. That means completing the collection.
 
-        mail_body = extract_body(session)
+        mail_body = await extract_body(session)
 
         mail_as_text = reform_email_text(mail_headers, mail_body)
 
