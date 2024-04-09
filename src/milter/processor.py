@@ -54,7 +54,7 @@ def subject_is_challenge_response(subject: str) -> bool:
 
 def get_challenge_subject(reference: str) -> str:
     # This needs to add in the leading space.
-    return f" Confirm: ::{reference}"
+    return f" Confirm: {reference}"
 
 
 def form_header(header) -> str:
@@ -99,8 +99,8 @@ def get_challenge_reference_from_subject(subject: str) -> str:
     """
     Extracts the challenge reference from the subject
     """
-    match = re.match(r"Confirm: ::([a-f0-9]+)", subject, re.IGNORECASE)
-    return match[1] if match else None
+    match = re.match(r"Confirm: (?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?)\s*$", subject, re.IGNORECASE)
+    return match["messageref"] if match else None
 
 
 def cleanup_mail(email) -> str:
