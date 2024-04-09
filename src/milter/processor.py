@@ -38,9 +38,9 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
 
             if header_drop_matchers[name].search(trimmed_entry):
                 logger.debug("Dropping: header {name} matched {entry}", extra={"name": name, "entry": entry})
-                return False
+                return True
 
-    return True  
+    return False  
 
 
 def subject_is_challenge_response(subject: str) -> bool:
