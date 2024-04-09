@@ -259,5 +259,9 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             # Valid, so release the messages
             release_messages(sender)
 
+        else:
+            logger.debug("Message is a response but we are not confirming the sender")
+            return Discard()
+
     # Anything else is just accepted
     return Accept()
