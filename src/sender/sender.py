@@ -1,9 +1,13 @@
 import hashlib
+import logging
 import re
 from datetime import datetime
 from typing import Iterable, Optional
 
 from .typing import Action
+
+
+logger = logging.getLogger(__name__)
 
 
 class Sender:
@@ -46,9 +50,15 @@ class Sender:
         """
 
         if self.action:
+            logger.debug("action for %(email)s already defined: %(action)s", {
+                "email": self.email,
+                "action": self.action,
+            })
             return self.action
 
         action_data = self.handler.get_action_for_sender(self.email)
+
+        logger.debug("action for %(email)s: %(action)s", {"email": self.email, "action": action_data})
 
         if not action_data:
             patterns = self.handler.get_patterns()
@@ -56,6 +66,7 @@ class Sender:
             for pattern, action, ref in patterns:
                 if re.fullmatch(pattern, self.email, re.IGNORECASE) is not None:
                     action_data = (action, ref)
+                    logger.debug("Matched pattern for %(email)s: %(action)s", {"email": self.email, "action": action_data})
                     break
 
         if action_data:
@@ -65,6 +76,11 @@ class Sender:
             self.action = "unknown"
             self.reference = None
 
+        logger.debug("action for %(email)s determined: %(action)s", {
+            "email": self.email,
+            "action": self.action,
+        })
+
         return self.action
 
     def set_action(self, action: Action) -> Optional[str]:
@@ -73,6 +89,11 @@ class Sender:
 
         Returns the reference used for confirmation
         """
+        logger.debug("Setting action for %(email)s to be: %(action)s", {
+            "email": self.email,
+            "action": action,
+        })
+
         ref = self.get_ref()
         self.handler.set_action_for_sender(self.email, action, ref)
         self.action = action
@@ -88,6 +109,7 @@ class Sender:
             self.get_action()
 
         if not self.reference:
+            logger.debug("Calculating reference for %(email)s", {"email": self.email})
             data = f"{self.email}_{datetime.now().isoformat()}".encode("utf-8")
             self.reference = hashlib.sha1(data).hexdigest()
 
@@ -99,6 +121,8 @@ class Sender:
 
         Returns the reference to be used for the confirmation
         """
+        logger.debug("Stashing message for %(email)s", {"email": self.email})
+
         self.handler.stash_message_for_sender(self.email, msg, recipients)
 
         if self.action != "confirm":
@@ -114,6 +138,8 @@ class Sender:
         After each message has been returned it will be removed from the stash.
         """
         for stash in self.handler.unstash_messages_for_sender(self.email):
+            logger.debug("Unstashing message for %(email)s", {"email": self.email})
+
             yield stash
 
     def validate_ref(self, ref: str) -> bool:
