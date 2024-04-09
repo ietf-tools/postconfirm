@@ -163,6 +163,29 @@ class HandlerDb:
                     )
                     connection.commit()
 
+                cursor.execute(
+                    """
+                    SELECT
+                        id, recipients, message
+                        FROM stash_static
+                        WHERE sender=%(sender)s
+                    """,
+                    {"sender": sender}
+                )
+
+                for (row_id, recipients, message) in cursor:
+                    yield (json.loads(recipients), message)
+
+                    # Use a different cursor to avoid clobbering the in-progress loop
+                    connection.cursor().execute(
+                        """
+                        DELETE FROM stash_static
+                            WHERE id=%(row_id)s
+                        """,
+                        {"row_id": row_id}
+                    )
+                    connection.commit()
+
             except Exception as e:
                 print(f"ERROR unstashing mails: {e}", flush=True)
                 return
