@@ -33,7 +33,7 @@ class Sender:
 
     def __init__(self, email: str, handler: any) -> None:
         self.email = email
-        self.reference = None
+        self.references = None
         self.action = None
 
         self.handler = handler
@@ -71,10 +71,10 @@ class Sender:
 
         if action_data:
             self.action = action_data[0]
-            self.reference = action_data[1]
+            self.references = action_data[1]
         else:
             self.action = "unknown"
-            self.reference = None
+            self.references = []
 
         logger.debug("action for %(email)s determined: %(action)s", {
             "email": self.email,
@@ -94,28 +94,65 @@ class Sender:
             "action": action,
         })
 
-        ref = self.get_ref()
-        self.handler.set_action_for_sender(self.email, action, ref)
+        refs = self.get_refs()
+        self.handler.set_action_for_sender(self.email, action, refs)
         self.action = action
 
-        return ref
+        return refs
 
-    def get_ref(self) -> str:
+    def get_refs(self) -> str:
         """
-        Returns the reference used for confirmation
+        Returns the references used for confirmation
         """
         if not self.action:
-            # Check the DB for a reference first
+            # Check the DB for the references first
             self.get_action()
 
-        if not self.reference:
+        if not self.references:
             logger.debug("Calculating reference for %(email)s", {"email": self.email})
             data = f"{self.email}_{datetime.now().isoformat()}".encode("utf-8")
-            self.reference = hashlib.sha1(data).hexdigest()
+            self.references = [hashlib.sha1(data).hexdigest()]
 
-        return self.reference
+        return self.references
 
-    def stash_message(self, msg: str, recipients: list[str]) -> str:
+    def add_reference(self, reference: str) -> None:
+        if self.references is None:
+            logger.debug("Setting reference %(reference)s for %(email)s", {
+                "email": self.email,
+                "reference": reference
+            })
+            self.references = [reference]
+        elif reference not in self.references:
+            logger.debug("Adding reference %(reference)s for %(email)s", {
+                "email": self.email,
+                "reference": reference
+            })
+            self.references.append(reference)
+        else:
+            logger.debug("Skipped existing reference %(reference)s for %(email)s", {
+                "email": self.email,
+                "reference": reference
+            })
+
+    def remove_reference(self, reference: str) -> None:
+        if self.references is None:
+            logger.debug("Ignoring reference %(reference)s removal for %(email)s", {
+                "email": self.email,
+                "reference": reference
+            })
+        elif reference in self.references:
+            logger.debug("Removing reference %(reference)s for %(email)s", {
+                "email": self.email,
+                "reference": reference
+            })
+            self.references.remove(reference)
+        else:
+            logger.debug("Skipped removal of missing reference %(reference)s for %(email)s", {
+                "email": self.email,
+                "reference": reference
+            })
+
+    def stash_message(self, msg: str, recipients: list[str], reference: str = None) -> str:
         """
         Stashes the email message so that it can be released after confirmation.
 
@@ -125,10 +162,13 @@ class Sender:
 
         self.handler.stash_message_for_sender(self.email, msg, recipients)
 
+        if reference:
+            self.add_reference(reference)
+
         if self.action != "confirm":
             return self.set_action("confirm")
         else:
-            return self.get_ref()
+            return self.get_refs()
 
     def unstash_messages(self) -> Iterable[tuple[str, str]]:
         """
@@ -144,8 +184,8 @@ class Sender:
 
     def validate_ref(self, ref: str) -> bool:
         """
-        Determine if this is the correct reference for this sender
+        Determine if this is a valid reference for this sender
 
-        Returns a boolean, true if this is the correct reference.
+        Returns a boolean, true if this is a valid reference.
         """
-        return ref == self.reference
+        return ref in self.references
