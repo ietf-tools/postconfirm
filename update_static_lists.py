@@ -9,6 +9,9 @@ import psycopg
 logger = logging.getLogger(__name__)
 
 
+dry_run = False
+
+
 def add_email_list_entries(cursor, list_name: str, action: str, source_name: str) -> None:
     with open(list_name, "r") as f:
         for entry in f:
@@ -22,32 +25,39 @@ def add_pattern_list_entries(cursor, list_name: str, action: str, source_name: s
 
 
 def add_list_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
-    cursor.execute(
-        """
-        INSERT INTO senders_static
-            (sender, action, source, ref, type)
-            VALUES
-                (%(sender)s, %(action)s, %(source_name)s, %(reference)s, %(type)s)
-            ON CONFLICT (sender)
-                DO UPDATE SET action=%(action)s, source=%(source_name)s, ref=%(reference)s, type=%(type)s
-        """,
-        {
-            "sender": sender,
-            "action": action,
-            "source_name": source_name,
-            "type": sender_type,
-            "reference": reference,
-        }
-    )
+    values = {
+        "sender": sender,
+        "action": action,
+        "source_name": source_name,
+        "type": sender_type,
+        "reference": reference,
+    }
+
+    logger.debug("Adding %(type)s entry for %(sender)s from %(source_name)s as %(action)s with %(reference)s", values)
+
+    if not dry_run:
+        cursor.execute(
+            """
+            INSERT INTO senders_static
+                (sender, action, source, ref, type)
+                VALUES
+                    (%(sender)s, %(action)s, %(source_name)s, %(reference)s, %(type)s)
+                ON CONFLICT (sender)
+                    DO UPDATE SET action=%(action)s, source=%(source_name)s, ref=%(reference)s, type=%(type)s
+            """,
+            values
+        )
 
 
 def main():
+    global dry_run
+
     parser = argparse.ArgumentParser(
         prog="update_static_lists",
         description="Admin script to convert the file-based lists into the database"
     )
     parser.add_argument("-c", "--config-file", default="/etc/postconfirm.cfg", type=argparse.FileType())
-    parser.add_argument("--skip-confirming")
+    parser.add_argument("-n", "--dry-run", action='store_true', help="Do not actually modify the data")
 
     args = parser.parse_args()
 
@@ -66,19 +76,22 @@ def main():
         "port": app_config.get("db.port", 5432)
     }
 
+    dry_run = args.dry_run
+
     with psycopg.connect(**connect_args) as connection:
         with connection.cursor() as cursor:
 
             logger.debug("Clearing down old data")
 
             # Then delete the static data
-            cursor.execute(
-                """
-                TRUNCATE
-                    senders_static
-                RESTART IDENTITY
-                """
-            )
+            if not dry_run:
+                cursor.execute(
+                    """
+                    TRUNCATE
+                        senders_static
+                    RESTART IDENTITY
+                    """
+                ) 
 
             # Then add the new data
 
