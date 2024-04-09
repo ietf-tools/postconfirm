@@ -90,9 +90,9 @@ class HandlerDb:
                 cursor.execute(
                     """
                     INSERT INTO senders
-                        (sender, action, ref)
+                        (sender, action, ref, type, source)
                         VALUES
-                            (%(sender)s, %(action)s, %(ref)s)
+                            (%(sender)s, %(action)s, %(ref)s, 'E', 'postconfirm')
                         ON CONFLICT (sender)
                             DO UPDATE SET action=%(action)s
                     """,
