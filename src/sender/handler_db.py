@@ -71,26 +71,14 @@ class HandlerDb:
             if result:
                 action = result[0]
                 if result[1]:
-                    try:
-                        refs = json.loads(result[1])
-                    except json.JSONDecodeError:
-                        # This must be a bare string, so make it a list.
-                        if refs:
-                            refs = [refs]
+                    refs = self._extract_refs(result[1])
 
             if static_result:
                 if not action:
                     action = static_result[0]
 
                 if static_result[1]:
-                    static_refs = None
-
-                    try:
-                        static_refs = json.loads(static_result[1])
-                    except json.JSONDecodeError:
-                        # This must be a bare string, so make it a list.
-                        if static_refs:
-                            static_refs = [static_refs]
+                    static_refs = self._extract_refs(static_result[1])
 
                     if refs is None:
                         refs = static_refs
@@ -98,6 +86,18 @@ class HandlerDb:
                         refs = list(set(refs).union(static_refs))
 
         return (action, refs)
+
+    def _extract_refs(self, ref_entry) -> Optional[list[str]]:
+        refs = None
+
+        try:
+            refs = json.loads(ref_entry)
+        except json.JSONDecodeError:
+            if ref_entry:
+                # This must be a bare string, so make it a list.
+                refs = [ref_entry]
+
+        return refs
 
     def get_patterns(self) -> Iterable[Tuple[str, str, str]]:
         """
