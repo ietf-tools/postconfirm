@@ -131,6 +131,7 @@ def main():
                 ("whitelists", "accept"),
                 ("rejectlists", "reject"),
                 ("blacklists", "reject"),
+                ("discardlists", "discard"),
             ]
 
             for config_name, action in email_lists:
@@ -153,6 +154,7 @@ def main():
                 ("whiteregex", "accept"),
                 ("rejectregex", "reject"),
                 ("blackregex", "reject"),
+                ("discardregex", "discard"),
             ]
 
             for config_name, action in regex_lists:
