@@ -37,6 +37,14 @@ class HandlerDb:
         """
         Return any action for the given sender
         """
+
+        action = "unknown"
+        refs = None
+
+        # We use the data from the senders table as a start.
+        # We fill in the gaps from the static table.
+        # Any references are always merged.
+
         with self._get_connection().cursor() as cursor:
             cursor.execute(
                 """
@@ -44,7 +52,13 @@ class HandlerDb:
                     action, ref
                     FROM senders
                     WHERE sender=%(sender)s AND type='E'
-                UNION
+                """,
+                {"sender": sender}
+            )
+            result = cursor.fetchone()
+
+            cursor.execute(
+                """
                 SELECT
                     action, ref
                     FROM senders_static
@@ -52,18 +66,47 @@ class HandlerDb:
                 """,
                 {"sender": sender}
             )
-            result = cursor.fetchone()
+            static_result = cursor.fetchone()
 
             if result:
-                return result
+                action = result[0]
+                if result[1]:
+                    try:
+                        refs = json.loads(result[1])
+                    except json.JSONDecodeError:
+                        # This must be a bare string, so make it a list.
+                        if refs:
+                            refs = [refs]
 
-        return ('unknown', None)
+            if static_result:
+                if not action:
+                    action = static_result[0]
+
+                if static_result[1]:
+                    static_refs = None
+
+                    try:
+                        static_refs = json.loads(static_result[1])
+                    except json.JSONDecodeError:
+                        # This must be a bare string, so make it a list.
+                        if static_refs:
+                            static_refs = [static_refs]
+
+                    if refs is None:
+                        refs = static_refs
+                    elif static_refs:
+                        refs = list(set(refs).union(static_refs))
+
+        return (action, refs)
 
     def get_patterns(self) -> Iterable[Tuple[str, str, str]]:
         """
         Returns any pattern-type actions
         """
         with self._get_connection().cursor() as cursor:
+            # Patterns can be much simpler than Emails because a pattern
+            # should never actually have references. This means there is no
+            # need to merge them.
             cursor.execute(
                 """
                 SELECT
@@ -86,6 +129,8 @@ class HandlerDb:
         """
         connection = self._get_connection()
         with connection.cursor() as cursor:
+            encoded_ref = json.dumps(ref) if ref else None
+
             try:
                 cursor.execute(
                     """
@@ -96,7 +141,7 @@ class HandlerDb:
                         ON CONFLICT (sender)
                             DO UPDATE SET action=%(action)s
                     """,
-                    {"sender": sender, "action": action, "ref": ref}
+                    {"sender": sender, "action": action, "ref": encoded_ref}
                 )
                 connection.commit()
                 return True
