@@ -27,10 +27,14 @@ def recipient_requires_challenge(recipients: list) -> Union[False, list]:
 
 def message_should_be_dropped(headers: list[dict]) -> bool:
     if "Precedence" not in header_drop_matchers:
-        header_drop_matchers["Precedence"] = re.compile(services["app_config"].get("bulk_regex", r"(junk|list|bulk|auto_reply)"))
+        header_drop_matchers["Precedence"] = re.compile(
+            services["app_config"].get("bulk_regex", r"(junk|list|bulk|auto_reply)")
+        )
 
     if "Auto-Submitted" not in header_drop_matchers:
-        header_drop_matchers["Auto-Submitted"] = re.compile(services["app_config"].get("auto_submitted_regex", r"^auto-"))
+        header_drop_matchers["Auto-Submitted"] = re.compile(
+            services["app_config"].get("auto_submitted_regex", r"^auto-")
+        )
 
     for name, entry in headers:
         if name in header_drop_matchers:
@@ -40,7 +44,7 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
                 logger.debug("Dropping: header {name} matched {entry}", extra={"name": name, "entry": entry})
                 return True
 
-    return False  
+    return False
 
 
 def subject_is_challenge_response(subject: str) -> bool:
@@ -168,7 +172,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     Decisions are made on the basis of where the message is going to and
     then who the sender is, since not all messages will be covered by the
     challenge system. Bulk messages that would otherwise be challenged are
-    dropped. Once we know that at least one destination requires a 
+    dropped. Once we know that at least one destination requires a
     challenge the sender is examined. In the simple cases the action will
     be either "accept", "reject", or "discard" and the appropriate
     response can be sent immediately.
@@ -212,13 +216,16 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     if challenge_recipients and should_drop:
         logger.debug("Message flagged for challenge but also matched drop conditions")
         return Discard()
-    
+
     elif challenge_recipients and not is_challenge_response:
         # Process the sender
         action = sender.get_action()
 
         if action == "accept":
-            logger.debug("Message flagged for challenge and sender -- %(sender)s -- marked for acceptance", {"sender": mail_from})
+            logger.debug(
+                "Message flagged for challenge and sender -- %(sender)s -- marked for acceptance",
+                {"sender": mail_from}
+            )
             return Accept()
         elif action == "reject":
             logger.debug("Message flagged for challenge and sender marked for rejecting")
