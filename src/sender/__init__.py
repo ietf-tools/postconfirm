@@ -1,19 +1,29 @@
 from .handler_db import HandlerDb
+from .handler_db_static import HandlerDbStatic
 from .sender import Sender
 
-handlers = {"db": HandlerDb, "_default": "db"}
-handler = None
+handlers = {"db": HandlerDb, "static": HandlerDbStatic, "_default": "db"}
+instances = {}
+
+
+def get_handler_instance(name: str) -> any:
+    global instances
+
+    if name not in instances:
+        instances[name] = handlers[name]()
+
+    return instances[name]
 
 
 def get_default_handler() -> any:
-    global handler
+    handler_name = handlers.get("_default", "db")
 
-    if not handler:
-        handler_name = handlers.get("_default", "db")
-        handler = handlers[handler_name]()
-
-    return handler
+    return get_handler_instance(handler_name)
 
 
 def get_sender(email) -> Sender:
     return Sender(email, get_default_handler())
+
+
+def get_static_sender(email) -> Sender:
+    return Sender(email, get_handler_instance("static"))
