@@ -58,7 +58,7 @@ class Sender:
 
         action_data = self.handler.get_action_for_sender(self.email)
 
-        logger.debug("action for %(email)s: %(action)s", {"email": self.email, "action": action_data})
+        logger.debug("Action record for %(email)s: %(action)s", {"email": self.email, "action": action_data})
 
         if not action_data:
             patterns = self.handler.get_patterns()
@@ -80,7 +80,7 @@ class Sender:
             self.action = "unknown"
             self.references = []
 
-        logger.debug("action for %(email)s determined: %(action)s", {
+        logger.debug("Final action for %(email)s determined: %(action)s", {
             "email": self.email,
             "action": self.action,
         })
@@ -93,12 +93,13 @@ class Sender:
 
         Returns the reference used for confirmation
         """
+        refs = self.get_refs()
+
         logger.debug("Setting action for %(email)s to be: %(action)s", {
             "email": self.email,
             "action": action,
         })
 
-        refs = self.get_refs()
         self.handler.set_action_for_sender(self.email, action, refs)
         self.action = action
 
