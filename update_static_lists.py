@@ -14,29 +14,43 @@ dry_run = False
 
 
 def add_email_list_entries(cursor, list_name: str, action: str, source_name: str) -> None:
-    with open(list_name, "r") as f:
-        for entry in f:
-            add_list_entry(cursor, entry.strip(), action, source_name)
-
+    try:
+        with open(list_name, "r") as f:
+            for entry in f:
+                add_list_entry(cursor, entry.strip(), action, source_name)
+    except (FileNotFoundError, PermissionError) as e:
+        logger.warning("Skipping invalid email list %(filename)s (%(source)s): %(reason)s", {
+            "source": source_name,
+            "filename": list_name,
+            "reason": str(e)
+        })
 
 def add_pattern_list_entries(cursor, list_name: str, action: str, source_name: str) -> None:
-    with open(list_name, "r") as f:
-        line_counter = 0
-        for entry in f:
-            line_counter += 1
+    try:
+        with open(list_name, "r") as f:
+            line_counter = 0
+            for entry in f:
+                line_counter += 1
 
-            try:
-                stripped_entry = entry.strip()
-                re.compile(stripped_entry)
+                try:
+                    stripped_entry = entry.strip()
+                    re.compile(stripped_entry)
 
-                add_list_entry(cursor, stripped_entry, action, source_name, "P")
-            except re.error as e:
-                logger.warning("Skipping invalid entry on %(line_counter)d of %(source)s: %(entry)s -- %(reason)s", {
-                                    "line_counter": line_counter,
-                                    "source": source_name,
-                                    "entry": stripped_entry,
-                                    "reason": e.msg
-                                })
+                    add_list_entry(cursor, stripped_entry, action, source_name, "P")
+                except re.error as e:
+                    logger.warning("Skipping invalid entry on %(line_counter)d of %(filename)s (%(source)s): %(entry)s -- %(reason)s", {
+                                        "line_counter": line_counter,
+                                        "filename": list_name,
+                                        "source": source_name,
+                                        "entry": stripped_entry,
+                                        "reason": e.msg
+                                    })
+    except (FileNotFoundError, PermissionError) as e:
+        logger.error("Skipping invalid pattern list %(filename)s (%(source)s): %(reason)s", {
+            "source": source_name,
+            "filename": list_name,
+            "reason": str(e)
+        })
 
 def add_list_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
     values = {
