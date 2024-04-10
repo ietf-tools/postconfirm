@@ -11,7 +11,7 @@ from src import services
 
 class HandlerDb:
     def __init__(self, app_config: Config = None) -> None:
-        self.connection = None
+        self.connection = services["db"] if "db" in services else None
         self.app_config = app_config if app_config else services["app_config"]
 
     def _get_connection(self) -> psycopg.Connection:
