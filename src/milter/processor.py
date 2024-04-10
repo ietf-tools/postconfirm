@@ -127,7 +127,7 @@ async def extract_headers(session: Session) -> tuple[Optional[str], list]:
         async for header in headers:
             value = header.value.tobytes().decode()
 
-            if header.name == "Subject":
+            if header.name.lower() == "subject":
                 mail_subject = value.lstrip()
 
             mail_headers.append((header.name, value))
