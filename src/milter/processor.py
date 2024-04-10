@@ -1,5 +1,7 @@
 import logging
+import random
 import re
+import string
 from typing import Union, Optional
 
 import chevron
@@ -15,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 LINE_SEP = "\n"
+
+
+IDENTIFIER_CHARS = string.ascii_letters + string.digits + '-'
 
 
 header_drop_matchers = {}
@@ -51,14 +56,16 @@ def subject_is_challenge_response(subject: str) -> bool:
     if not subject:
         return False
 
-    reference = get_challenge_reference_from_subject(subject)
+    token = get_challenge_token_from_subject(subject)
 
-    return True if reference else False
+    return True if token else False
 
 
-def get_challenge_subject(reference: str) -> str:
+def get_challenge_subject(sender_email: str, recipients: list[str], reference: str) -> str:
+    token = services["validator"].get_token(sender_email, recipients[0], reference)
+
     # This needs to add in the leading space.
-    return f" Confirm: {reference}"
+    return f" Confirm: {token}"
 
 
 def form_header(header) -> str:
@@ -69,7 +76,7 @@ def reform_email_text(headers: list, body_chunks: list) -> str:
     return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 
-def send_challenge(sender: Sender, subject: str, recipients: list[str], challenge_id: str, reference: str) -> None:
+def send_challenge(sender: Sender, subject: str, recipients: list[str], reference: str) -> None:
     """
     Send the challenge email to the sender, with the reference
     and then update the sender to indicate this.
@@ -77,19 +84,22 @@ def send_challenge(sender: Sender, subject: str, recipients: list[str], challeng
     template_name = services["app_config"].get("mail_template", "/etc/postconfirm/confirm.email.mustache")
     admin_address = services["app_config"].get("admin_address")
 
+    challenge_address = recipients[0]
+
     with open(template_name, "r") as template:
         message_text = chevron.render(template, {
             "subject": subject,
             "sender_address": sender.email,
             "recipient_address": ", ".join(recipients),
+            "challenge_address": challenge_address,
             "admin_address": admin_address,
-            "id": challenge_id,
+            "id": reference,
         })
 
         headers = [
-            ("From", f" {recipients[0]}"),
+            ("From", f" {challenge_address}"),
             ("To", f" {sender.email}"),
-            ("Subject", get_challenge_subject(reference)),
+            ("Subject", get_challenge_subject(sender.email, recipients, reference)),
         ]
 
         challenge_message = reform_email_text(headers, [message_text])
@@ -99,12 +109,12 @@ def send_challenge(sender: Sender, subject: str, recipients: list[str], challeng
             mailer.sendmail([sender.email], challenge_message)
 
 
-def get_challenge_reference_from_subject(subject: str) -> str:
+def get_challenge_token_from_subject(subject: str) -> str:
     """
-    Extracts the challenge reference from the subject
+    Extracts the challenge token from the subject
     """
-    match = re.match(r"Confirm: (?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?)\s*$", subject, re.IGNORECASE)
-    return match["messageref"] if match else None
+    match = re.match(r"Confirm: (?P<token>(?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?))\s*$", subject, re.IGNORECASE)
+    return match["token"] if match else None
 
 
 def cleanup_mail(email) -> str:
@@ -152,6 +162,19 @@ async def extract_body(session: Session) -> list:
             mail_body.append(chunk.tobytes().decode())
 
     return mail_body
+
+
+def extract_reference(mail_headers: list[dict]) -> str:
+    message_id = next((header[1] for header in mail_headers if header[0].lower() == "message-id"), None)
+
+    if message_id:
+        matches = re.match(r" <?(.*?)@", message_id)
+        if matches:
+            return matches[1].replace(":", "")
+
+    logging.warning("Message is missing a Message ID. Generating a reference code")
+
+    return ''.join(random.choice(IDENTIFIER_CHARS, 10))
 
 
 def release_messages(sender: Sender) -> None:
@@ -241,11 +264,13 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         mail_as_text = reform_email_text(mail_headers, mail_body)
 
-        challenge_reference = sender.stash_message(mail_as_text, mail_recipients)
+        challenge_reference = extract_reference(mail_headers)
 
-        if action == "unknown" or action == "expired":
+        sender.stash_message(mail_as_text, mail_recipients, challenge_reference)
+
+        if action in ["unknown", "expired", "confirm"]:
             logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
-            send_challenge(sender, mail_subject, challenge_recipients, 'id-here', challenge_reference)
+            send_challenge(sender, mail_subject, challenge_recipients, challenge_reference)
 
         return Discard()
 
@@ -254,9 +279,9 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         action = sender.get_action()
 
         if action == "confirm":
-            reference = get_challenge_reference_from_subject(mail_subject)
+            token = get_challenge_token_from_subject(mail_subject)
 
-            if not sender.validate_ref(reference):
+            if not services["validator"].validate_token(sender.email, token, sender.get_refs()):
                 # Reject the message
                 logger.debug("Message is a response but is not valid")
                 return Reject()
