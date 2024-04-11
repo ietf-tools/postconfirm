@@ -113,11 +113,6 @@ class Sender:
             # Check the DB for the references first
             self.get_action()
 
-        if not self.references:
-            logger.debug("Calculating reference for %(email)s", {"email": self.email})
-            data = f"{self.email}_{datetime.now().isoformat()}".encode("utf-8")
-            self.references = [hashlib.sha1(data).hexdigest()]
-
         return self.references
 
     def add_reference(self, reference: str) -> None:
