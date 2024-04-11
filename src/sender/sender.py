@@ -152,6 +152,18 @@ class Sender:
                 "reference": reference
             })
 
+    def clear_references(self) -> list[str]:
+        """
+        Remove all the references for a sender.
+
+        Typically this would happen when the sender moves from the
+        `confirm` action to the `accept` one.
+        """
+        old_refs = self.references
+        self.references = None
+
+        return old_refs
+
     def stash_message(self, msg: str, recipients: list[str], reference: str = None) -> str:
         """
         Stashes the email message so that it can be released after confirmation.
