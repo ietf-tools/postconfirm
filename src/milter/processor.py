@@ -293,7 +293,11 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
             logger.debug("Message is a valid confirmation response")
 
-            # Valid, so release the messages
+            # Mark the sender as valid
+            sender.clear_references()
+            sender.set_action("accept")
+
+            # Release the messages
             release_messages(sender)
 
         else:
