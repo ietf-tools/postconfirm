@@ -1,6 +1,10 @@
+import logging
 from smtplib import SMTP, SMTPServerDisconnected
 
 from config import Config
+
+
+logger = logging.getLogger(__name__)
 
 
 class Remailer:
@@ -29,7 +33,11 @@ class Remailer:
 
     def sendmail(self, recipients: list[str], message: str, sender: str = None) -> any:
         connection = self.get_connection()
-        return connection.sendmail(sender or self.sender_from, recipients, message)
+
+        try:
+            return connection.sendmail(sender or self.sender_from, recipients, message)
+        except Exception as e:
+            logger.error("Exception in SMTP: %(reason)s", {"reason": str(e)})
 
     def __enter__(self) -> any:
         return self
