@@ -179,6 +179,14 @@ def main():
                     """
                 ) 
 
+                cursor.execute(
+                    """
+                    TRUNCATE
+                        stash_static
+                    RESTART IDENTITY
+                    """
+                ) 
+
             # Then add the new data
 
             logger.debug("Adding new data")
