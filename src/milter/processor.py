@@ -293,7 +293,9 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         else:
             logger.debug("Message is a response but we are not confirming the sender")
-            return Discard()
+
+        # Always discard the message at this stage
+        return Discard()
 
     # Anything else is just accepted
     return Accept()
