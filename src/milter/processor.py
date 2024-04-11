@@ -184,7 +184,12 @@ def release_messages(sender: Sender) -> None:
 
     with services["remailer"] as mailer:
         for (recipients, message) in sender.unstash_messages():
-            mailer.sendmail(sender.get_email(), recipients, message)
+            logging.debug("Releasing message from %(sender)s to %(recipients)s", {
+                "sender": sender.get_email(),
+                "recipients": ', '.join(recipients)
+            })
+            # Not sure if we should be including the sender here.
+            mailer.sendmail(recipients, message, sender.get_email())
 
 
 @Runner
