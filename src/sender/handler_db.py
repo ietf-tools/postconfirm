@@ -38,7 +38,7 @@ class HandlerDb:
         Return any action for the given sender
         """
 
-        action = "unknown"
+        action = None
         refs = None
 
         # We use the data from the senders table as a start.
@@ -84,6 +84,9 @@ class HandlerDb:
                         refs = static_refs
                     elif static_refs:
                         refs = list(set(refs).union(static_refs))
+
+        if not action:
+            action = "unknown"
 
         return (action, refs)
 
