@@ -47,7 +47,9 @@ class Remailer:
             try:
                 self.smtp.quit()
             except SMTPServerDisconnected:
-                self.smtp = None
+                pass
+
+            self.smtp = None
 
         return True
 
