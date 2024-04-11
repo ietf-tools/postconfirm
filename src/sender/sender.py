@@ -116,6 +116,11 @@ class Sender:
         return self.references
 
     def add_reference(self, reference: str) -> None:
+        """
+        Add the reference to the set of references for the sender.
+
+        A given reference will only be added to the sender once.
+        """
         if self.references is None:
             logger.debug("Setting reference %(reference)s for %(email)s", {
                 "email": self.email,
@@ -135,6 +140,11 @@ class Sender:
             })
 
     def remove_reference(self, reference: str) -> None:
+        """
+        Remove the reference from the set of references for the sender.
+
+        If the reference does not exist it is ignored.
+        """
         if self.references is None:
             logger.debug("Ignoring reference %(reference)s removal for %(email)s", {
                 "email": self.email,
