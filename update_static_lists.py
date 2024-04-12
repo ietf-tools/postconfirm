@@ -82,6 +82,26 @@ def add_sender_entry(cursor, sender: str, action: str, source_name: str, sender_
         )
 
 
+def process_in_progress(cursor: psycopg.Cursor, app_config: config.Config) -> None:
+    logger.debug("Clearing down old static stash data")
+
+    if not dry_run:
+        cursor.execute(
+            """
+            TRUNCATE
+                stash_static
+            RESTART IDENTITY
+            """
+        )
+
+    mail_cache_dir = app_config.get("mail_cache_dir", None)
+
+    if mail_cache_dir:
+        logger.info("Processing in-progress confirmations by scanning cache: %(cache_dir)s", {"cache_dir": mail_cache_dir})
+
+        process_cache_directory(mail_cache_dir)
+
+
 def process_cache_directory(cache_dir: str) -> None:
     senders = {}
 
@@ -235,12 +255,7 @@ def main():
                     add_pattern_sender_entries(cursor, list_name, action, source_name)
 
             if not args.skip_in_progress:
-                mail_cache_dir = app_config.get("mail_cache_dir", None)
-
-                if mail_cache_dir:
-                    logger.info("Processing in-progress confirmations by scanning cache: %(cache_dir)s", {"cache_dir": mail_cache_dir})
-
-                    process_cache_directory(mail_cache_dir)
+                process_in_progress(cursor, app_config)
 
             connection.commit()
 
