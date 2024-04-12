@@ -86,6 +86,7 @@ def add_email_sender_entries(cursor, list_name: str, action: str, source_name: s
             "reason": str(e)
         })
 
+
 def add_pattern_sender_entries(cursor, list_name: str, action: str, source_name: str) -> None:
     try:
         with open(list_name, "r") as f:
@@ -112,6 +113,7 @@ def add_pattern_sender_entries(cursor, list_name: str, action: str, source_name:
             "filename": list_name,
             "reason": str(e)
         })
+
 
 def add_sender_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
     values = {
