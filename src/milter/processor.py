@@ -9,6 +9,7 @@ from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
 
 from src.sender import Sender, get_sender
+from src.challenge import get_challenge
 
 from src import services
 
@@ -26,8 +27,16 @@ header_drop_matchers = {}
 
 
 def recipient_requires_challenge(recipients: list) -> Union[False, list]:
-    # FIXME: Implement recipient_requires_challenge
-    return recipients
+    challenges = [get_challenge(recipient) for recipient in recipients]
+    challengeable = filter(lambda challenge: challenge.get_action() == "challenge", challenges)
+    to_challenge = list([challenge.get_email() for challenge in challengeable])
+
+    logger.debug("challenges: %(challenges)s", {"challenges": to_challenge})
+
+    if len(to_challenge):
+        return to_challenge
+    else:
+        return False
 
 
 def message_should_be_dropped(headers: list[dict]) -> bool:

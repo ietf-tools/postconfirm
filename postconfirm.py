@@ -3,10 +3,12 @@ import logging
 
 from anyio import create_tcp_listener, run
 import config
+import psycopg
 
 from src.milter import handle
 from src.remailer import Remailer
 from src.validator import Validator
+from src.challenge import init_handlers as init_challenge_handlers
 
 from src import services
 
@@ -30,6 +32,20 @@ async def main():
     services["app_config"] = app_config
     services["remailer"] = Remailer(app_config)
     services["validator"] = Validator(app_config)
+
+    try:
+        services["db"] = psycopg.connect(
+            dbname=app_config.get("db.name", "postconfirm"),
+            user=app_config.get("db.user", "postconfirm"),
+            password=app_config.get("db.password", None),
+            host=app_config.get("db.host", "localhost"),
+            port=app_config.get("db.port", 5432)
+        )
+    except psycopg.OperationalError as e:
+        print(f"The error '{e}' occurred")
+        raise e
+
+    init_challenge_handlers(services)
 
     # Start the listener
     listen_port = args.port or app_config.get("milter_port", 1999)
