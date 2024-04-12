@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 dry_run = False
 
 
-def add_email_list_entries(cursor, list_name: str, action: str, source_name: str) -> None:
+def add_email_sender_entries(cursor, list_name: str, action: str, source_name: str) -> None:
     try:
         with open(list_name, "r") as f:
             for entry in f:
-                add_list_entry(cursor, entry.strip(), action, source_name)
+                add_sender_entry(cursor, entry.strip(), action, source_name)
     except (FileNotFoundError, PermissionError) as e:
         logger.warning("Skipping invalid email list %(filename)s (%(source)s): %(reason)s", {
             "source": source_name,
@@ -30,7 +30,7 @@ def add_email_list_entries(cursor, list_name: str, action: str, source_name: str
             "reason": str(e)
         })
 
-def add_pattern_list_entries(cursor, list_name: str, action: str, source_name: str) -> None:
+def add_pattern_sender_entries(cursor, list_name: str, action: str, source_name: str) -> None:
     try:
         with open(list_name, "r") as f:
             line_counter = 0
@@ -41,7 +41,7 @@ def add_pattern_list_entries(cursor, list_name: str, action: str, source_name: s
                     stripped_entry = entry.strip()
                     re.compile(stripped_entry)
 
-                    add_list_entry(cursor, stripped_entry, action, source_name, "P")
+                    add_sender_entry(cursor, stripped_entry, action, source_name, "P")
                 except re.error as e:
                     logger.warning("Skipping invalid entry on %(line_counter)d of %(filename)s (%(source)s): %(entry)s -- %(reason)s", {
                                         "line_counter": line_counter,
@@ -57,7 +57,7 @@ def add_pattern_list_entries(cursor, list_name: str, action: str, source_name: s
             "reason": str(e)
         })
 
-def add_list_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
+def add_sender_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
     values = {
         "sender": sender,
         "action": action,
@@ -213,7 +213,7 @@ def main():
                     })
                     source_name = basename(list_name)
 
-                    add_email_list_entries(cursor, list_name, action, source_name)
+                    add_email_sender_entries(cursor, list_name, action, source_name)
 
             regex_lists = [
                 ("allowregex", "accept"),
@@ -232,7 +232,7 @@ def main():
 
                     source_name = basename(list_name)
 
-                    add_pattern_list_entries(cursor, list_name, action, source_name)
+                    add_pattern_sender_entries(cursor, list_name, action, source_name)
 
             if not args.skip_in_progress:
                 mail_cache_dir = app_config.get("mail_cache_dir", None)
