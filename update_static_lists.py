@@ -18,6 +18,62 @@ logger = logging.getLogger(__name__)
 dry_run = False
 
 
+def process_senders(cursor: psycopg.Cursor, app_config: config.Config) -> None:
+    logger.debug("Clearing down old static sender data")
+
+    if not dry_run:
+        cursor.execute(
+            """
+            TRUNCATE
+                senders_static
+            RESTART IDENTITY
+            """
+        )
+
+    email_lists = [
+        ("confirmlist", "accept"),
+        ("allowlists", "accept"),
+        ("whitelists", "accept"),
+        ("rejectlists", "reject"),
+        ("blacklists", "reject"),
+        ("discardlists", "discard"),
+    ]
+
+    for config_name, action in email_lists:
+        config_lists = app_config.get(config_name, [])
+
+        if isinstance(config_lists, str):
+            config_lists = [config_lists]
+
+        for list_name in config_lists:
+            logger.info("Processing list (type: %(type)s; file: %(file_name)s)", {
+                "type": action,
+                "file_name": list_name
+            })
+            source_name = basename(list_name)
+
+            add_email_sender_entries(cursor, list_name, action, source_name)
+
+    regex_lists = [
+        ("allowregex", "accept"),
+        ("whiteregex", "accept"),
+        ("rejectregex", "reject"),
+        ("blackregex", "reject"),
+        ("discardregex", "discard"),
+    ]
+
+    for config_name, action in regex_lists:
+        for list_name in app_config.get(config_name, []):
+            logger.info("Processing regex list (type: %(type)s; file: %(file_name)s)", {
+                "type": action,
+                "file_name": list_name
+            })
+
+            source_name = basename(list_name)
+
+            add_pattern_sender_entries(cursor, list_name, action, source_name)
+
+
 def add_email_sender_entries(cursor, list_name: str, action: str, source_name: str) -> None:
     try:
         with open(list_name, "r") as f:
@@ -159,6 +215,7 @@ def main():
     )
     parser.add_argument("-c", "--config-file", default="/etc/postconfirm.cfg", type=argparse.FileType())
     parser.add_argument("-n", "--dry-run", action='store_true', help="Do not actually modify the data")
+    parser.add_argument("--skip-senders")
     parser.add_argument("--skip-in-progress")
 
     args = parser.parse_args()
@@ -186,73 +243,8 @@ def main():
         services["db"] = connection
 
         with connection.cursor() as cursor:
-
-            logger.debug("Clearing down old data")
-
-            # Then delete the static data
-            if not dry_run:
-                cursor.execute(
-                    """
-                    TRUNCATE
-                        senders_static
-                    RESTART IDENTITY
-                    """
-                ) 
-
-                cursor.execute(
-                    """
-                    TRUNCATE
-                        stash_static
-                    RESTART IDENTITY
-                    """
-                ) 
-
-            # Then add the new data
-
-            logger.debug("Adding new data")
-
-            email_lists = [
-                ("confirmlist", "accept"),
-                ("allowlists", "accept"),
-                ("whitelists", "accept"),
-                ("rejectlists", "reject"),
-                ("blacklists", "reject"),
-                ("discardlists", "discard"),
-            ]
-
-            for config_name, action in email_lists:
-                config_lists = app_config.get(config_name, [])
-
-                if isinstance(config_lists, str):
-                    config_lists = [config_lists]
-
-                for list_name in config_lists:
-                    logger.info("Processing list (type: %(type)s; file: %(file_name)s)", {
-                        "type": action,
-                        "file_name": list_name
-                    })
-                    source_name = basename(list_name)
-
-                    add_email_sender_entries(cursor, list_name, action, source_name)
-
-            regex_lists = [
-                ("allowregex", "accept"),
-                ("whiteregex", "accept"),
-                ("rejectregex", "reject"),
-                ("blackregex", "reject"),
-                ("discardregex", "discard"),
-            ]
-
-            for config_name, action in regex_lists:
-                for list_name in app_config.get(config_name, []):
-                    logger.info("Processing regex list (type: %(type)s; file: %(file_name)s)", {
-                        "type": action,
-                        "file_name": list_name
-                    })
-
-                    source_name = basename(list_name)
-
-                    add_pattern_sender_entries(cursor, list_name, action, source_name)
+            if not args.skip_senders:
+                process_senders(cursor, app_config)
 
             if not args.skip_in_progress:
                 process_in_progress(cursor, app_config)
