@@ -206,6 +206,121 @@ def process_cache_file(filename: str) -> Union[False, tuple[str, list[str], str]
     except (FileNotFoundError, PermissionError):
         return False
 
+
+def process_challenges(cursor: psycopg.Cursor, app_config: config.Config) -> None:
+    logger.debug("Clearing down old challenge data")
+
+    if not dry_run:
+        cursor.execute(
+            """
+            TRUNCATE
+                challenges
+            RESTART IDENTITY
+            """
+        ) 
+
+    challenge_lists = [
+        ("challengelists", "challenge"),
+        ("nochallengelists", "ignore"),
+    ]
+
+    for config_name, action in challenge_lists:
+        config_lists = app_config.get(config_name, [])
+
+        if isinstance(config_lists, str):
+            config_lists = [config_lists]
+
+        for list_name in config_lists:
+            logger.info("Processing challenge list (type: %(type)s; file: %(file_name)s)", {
+                "type": action,
+                "file_name": list_name
+            })
+            source_name = basename(list_name)
+
+            add_email_challenge_entries(cursor, list_name, action, source_name)
+
+    regex_lists = [
+        ("challengeregex", "challenge"),
+        ("nochallengeregex", "ignore"),
+    ]
+
+    for config_name, action in regex_lists:
+        for list_name in app_config.get(config_name, []):
+            logger.info("Processing challenge regex list (type: %(type)s; file: %(file_name)s)", {
+                "type": action,
+                "file_name": list_name
+            })
+
+            source_name = basename(list_name)
+
+            add_pattern_challenge_entries(cursor, list_name, action, source_name)
+
+
+def add_email_challenge_entries(cursor, list_name: str, action: str, source_name: str) -> None:
+    try:
+        with open(list_name, "r") as f:
+            for entry in f:
+                add_challenge_entry(cursor, entry.strip(), action, source_name)
+    except (FileNotFoundError, PermissionError) as e:
+        logger.warning("Skipping invalid email challenge list %(filename)s (%(source)s): %(reason)s", {
+            "source": source_name,
+            "filename": list_name,
+            "reason": str(e)
+        })
+
+
+def add_pattern_challenge_entries(cursor, list_name: str, action: str, source_name: str) -> None:
+    try:
+        with open(list_name, "r") as f:
+            line_counter = 0
+            for entry in f:
+                line_counter += 1
+
+                try:
+                    stripped_entry = entry.strip()
+                    re.compile(stripped_entry)
+
+                    add_challenge_entry(cursor, stripped_entry, action, source_name, "P")
+                except re.error as e:
+                    logger.warning("Skipping invalid entry on %(line_counter)d of %(filename)s (%(source)s): %(entry)s -- %(reason)s", {
+                                        "line_counter": line_counter,
+                                        "filename": list_name,
+                                        "source": source_name,
+                                        "entry": stripped_entry,
+                                        "reason": e.msg
+                                    })
+    except (FileNotFoundError, PermissionError) as e:
+        logger.error("Skipping invalid pattern challenge list %(filename)s (%(source)s): %(reason)s", {
+            "source": source_name,
+            "filename": list_name,
+            "reason": str(e)
+        })
+
+
+def add_challenge_entry(cursor, challenge: str, action: str, source_name: str, challenge_type: str = "E") -> None:
+    values = {
+        "challenge": challenge,
+        "action_to_take": action,
+        "source_name": source_name,
+        "challenge_type": challenge_type,
+    }
+
+    logger.debug("Adding %(challenge_type)s entry for %(challenge)s from %(source_name)s as challenge %(action_to_take)s", values)
+
+    if not dry_run:
+        cursor.execute(
+            """
+            INSERT INTO challenges
+                (challenge, action_to_take, source, challenge_type)
+                VALUES
+                    (%(challenge)s, %(action_to_take)s, %(source_name)s, %(challenge_type)s)
+                ON CONFLICT (challenge)
+                    DO UPDATE SET action_to_take=%(action_to_take)s, source=%(source_name)s, challenge_type=%(challenge_type)s
+            """,
+            values
+        )
+
+
 def main():
     global dry_run
 
@@ -217,6 +332,7 @@ def main():
     parser.add_argument("-n", "--dry-run", action='store_true', help="Do not actually modify the data")
     parser.add_argument("--skip-senders")
     parser.add_argument("--skip-in-progress")
+    parser.add_argument("--skip-challenges")
 
     args = parser.parse_args()
 
@@ -248,6 +364,9 @@ def main():
 
             if not args.skip_in_progress:
                 process_in_progress(cursor, app_config)
+
+            if not args.skip_challenges:
+                process_challenges(cursor, app_config)
 
             connection.commit()
 
