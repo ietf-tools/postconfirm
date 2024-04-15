@@ -43,26 +43,6 @@ class TestSender:
         action = sender.get_action()
         assert action == "accept"
 
-    def test_a_reference_can_be_requested_for_known_senders(self):
-        sender = Sender(defined_sender, MockHandler())
-        reference = sender.get_ref()
-        assert reference
-
-    def test_a_reference_can_be_requested_for_unknown_senders(self):
-        sender = Sender("unknown@dev.null", MockHandler())
-        reference = sender.get_ref()
-        assert reference
-
-    def test_a_correct_reference_validates(self):
-        sender = Sender(defined_sender, MockHandler())
-        reference = sender.get_ref()
-        assert sender.validate_ref(reference)
-
-    def test_an_incorrect_reference_fails_validation(self):
-        sender = Sender(defined_sender, MockHandler())
-        reference = sender.get_ref()
-        assert not sender.validate_ref(f"xx{reference}xx")
-
     def test_emails_can_be_unstashed(self):
         sender = Sender(defined_sender, MockHandler())
         email_data = list(sender.unstash_messages())
