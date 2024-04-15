@@ -1,5 +1,5 @@
-from .db import get_db_connection
+from .db import get_db_pool
 
 __all__ = [
-    "get_db_connection"
+    "get_db_pool"
 ]

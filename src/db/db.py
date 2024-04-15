@@ -2,33 +2,36 @@ import logging
 from typing import Optional
 
 import psycopg
+from psycopg_pool import ConnectionPool
 
 
 logger = logging.getLogger(__name__)
 
 
-connection_cache = {}
+pool_cache: dict[str, ConnectionPool] = {}
 
 
-def get_db_connection(config_fragment: dict, cache_key: Optional[str] = None) -> psycopg.Connection:
-    global connection_cache
+def get_db_pool(config_fragment: dict, cache_key: Optional[str] = None) -> ConnectionPool:
+    global pool_cache
 
-    if not cache_key or cache_key not in connection_cache:
+    if not cache_key or cache_key not in pool_cache:
         try:
-            connection = psycopg.connect(
-                dbname=config_fragment.get("name", "postconfirm"),
-                user=config_fragment.get("user", "postconfirm"),
-                password=config_fragment.get("password", None),
-                host=config_fragment.get("host", "localhost"),
-                port=config_fragment.get("port", 5432)
-            )
+            pool = ConnectionPool(kwargs={
+                    "dbname": config_fragment.get("name", "postconfirm"),
+                    "user": config_fragment.get("user", "postconfirm"),
+                    "password": config_fragment.get("password", None),
+                    "host": config_fragment.get("host", "localhost"),
+                    "port": config_fragment.get("port", 5432)
+            })
         except psycopg.OperationalError as e:
             print(f"The error '{e}' occurred")
             raise e
 
-        if cache_key:
-            connection_cache[cache_key] = connection
+        pool.open(wait=True)
 
-        return connection
+        if cache_key:
+            pool_cache[cache_key] = pool
+
+        return pool
     else:
-        return connection_cache[cache_key]
+        return pool_cache[cache_key]

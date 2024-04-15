@@ -82,7 +82,8 @@ class HandlerDbStatic:
                 """
             )
 
-            yield cursor
+            for row in cursor:
+                yield row
 
     def set_action_for_sender(self, sender: str, action: Action, ref: str) -> bool:
         """
