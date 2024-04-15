@@ -282,7 +282,11 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         sender.stash_message(mail_as_text, mail_recipients, challenge_reference)
 
-        if action in ["unknown", "expired", "confirm"]:
+        actions_to_challenge = ["unknown", "expired"]
+        if services["app_config"].get("resend_confirmation", True):
+            actions_to_challenge.append("confirm")
+
+        if action in actions_to_challenge:
             logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
             send_challenge(sender, mail_subject, challenge_recipients, challenge_reference)
 
