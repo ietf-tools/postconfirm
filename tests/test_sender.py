@@ -53,4 +53,12 @@ class TestSender:
         ref = sender.stash_message("foo", ["e@f.g"])
         email_data = list(sender.unstash_messages())
         assert len(email_data) == 3
-        assert ref
+        assert ref is None
+
+    def test_emails_can_be_stashed_with_ref(self):
+        sender = Sender(defined_sender, MockHandler())
+        test_ref = "a-reference"
+        ref = sender.stash_message("foo", ["e@f.g"], test_ref)
+        email_data = list(sender.unstash_messages())
+        assert len(email_data) == 3
+        assert ref == [test_ref]
