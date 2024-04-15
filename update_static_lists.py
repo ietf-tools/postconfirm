@@ -9,6 +9,7 @@ import config
 import psycopg
 
 from src import services
+from src.db import get_db_pool
 from src.sender import get_static_sender
 
 
@@ -157,10 +158,10 @@ def process_in_progress(cursor: psycopg.Cursor, app_config: config.Config) -> No
     if mail_cache_dir:
         logger.info("Processing in-progress confirmations by scanning cache: %(cache_dir)s", {"cache_dir": mail_cache_dir})
 
-        process_cache_directory(mail_cache_dir)
+        process_cache_directory(cursor, mail_cache_dir)
 
 
-def process_cache_directory(cache_dir: str) -> None:
+def process_cache_directory(cursor: psycopg.Cursor, cache_dir: str) -> None:
     senders = {}
 
     cache_path = Path(cache_dir)
@@ -181,7 +182,7 @@ def process_cache_directory(cache_dir: str) -> None:
             continue
 
         if from_email not in senders:
-            this_sender = get_static_sender(from_email)
+            this_sender = get_static_sender(from_email, cursor)
             senders[from_email] = this_sender
         else:
             this_sender = senders[from_email]
@@ -346,21 +347,11 @@ def main():
     # Set up the root logger
     logging.basicConfig(level=app_config.get('log.level', logging.WARNING))
 
-    # We need to create a connection and start a transaction
-    connect_args = {
-        "dbname": app_config.get("db.name", "postconfirm"),
-        "user": app_config.get("db.user", "postconfirm"),
-        "password": app_config.get("db.password", None),
-        "host": app_config.get("db.host", "localhost"),
-        "port": app_config.get("db.port", 5432)
-    }
-
     dry_run = args.dry_run
 
-    with psycopg.connect(**connect_args) as connection:
-        services["db"] = connection
-
+    with get_db_pool(app_config["db"], "db").connection() as connection:
         with connection.cursor() as cursor:
+
             if not args.skip_senders:
                 process_senders(cursor, app_config)
 
@@ -371,8 +362,6 @@ def main():
                 process_challenges(cursor, app_config)
 
             connection.commit()
-
-        del services["db"]
 
 
 if __name__ == "__main__":
