@@ -148,9 +148,21 @@ def read_listinfo():
             mmlist = MailList.MailList(name, lock=False)
             listinfo[name] = {}
             listinfo[name]['archive'] = bool(mmlist.archive)
-        log("Read %s mailman listinfo entries" % len(listinfo))
     except Exception as e:
-        log("Exception when reading mailman listinfo: %s" % e)
+        log("Exception when reading Mailman 2 listinfo: %s" % e)
+    mailman_2_count = len(listinfo)
+    log("Read %s Mailman 2 listinfo entries" % mailman_2_count)
+    try:
+        import psycopg2
+        conn = psycopg2.connect("dbname=mailman user=mailman")
+        cur = conn.cursor()
+        cur.execute("SELECT list_name, archive_policy FROM mailinglist;")
+        items = cur.fetchall()
+        for k, v in items:
+            listinfo[k] = bool(v)
+    except Exception as e:
+        log("Exception when reading Mailman 3 listinfo: %s" % e)
+    log("Read %s Mailman 3 listinfo entries, total %s" % (len(listinfo) - mailman_2_count, len(listinfo)))        
 
 # ------------------------------------------------------------------------------
 # def read_bouncelist(file):
@@ -341,19 +353,29 @@ def cache_mail():
         if msg['List-Id']:
             if not testing: # faked in tests, listinfo already set
                 from Mailman import MailList # This has to happen after we're configured
+                import psycopg2
             try:
                 list = re.search('<([^>]+)>', msg['List-Id']).group(1).replace('.ietf.org', '')
             except Exception:
                 list = msg['List-Id'].strip('<>').replace('.ietf.org', '')
             if not list in listinfo:
                 try:
-                    mmlist = MailList.MailList(list, lock=False)
-                    log("Mailman list archive setting for %s: %s" % (list, mmlist.archive))
+                    conn = psycopg2.connect()
+                    cur = conn.cursor()
+                    cur.execute("SELECT archive_policy FROM mailinglist WHERE list_name = %s", (list,))
+                    archive = cur.fetchone()
+                    if archive is not None:
+                        log("Mailman list archive setting for %s: %s" % (list, archive[0]))
+                        archive = bool(archive[0])
+                    else:
+                        mmlist = MailList.MailList(list, lock=False)
+                        log("Mailman list archive setting for %s: %s" % (list, mmlist.archive))
+                        archive = bool(mmlist.archive)
                 except Exception as e:
                     mmlist = None
                     log("No mailman info for list %s: %s" % (list, e))
                 listinfo[list] = {}
-                listinfo[list]['archive'] = mmlist != None and bool(mmlist.archive)
+                listinfo[list]['archive'] = bool(archive)
             if listinfo[list]['archive']:
                 msgid = get_msgid(msg)
                 sha = hashlib.sha1(msgid)
