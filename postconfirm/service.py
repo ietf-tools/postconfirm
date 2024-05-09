@@ -159,7 +159,9 @@ def read_listinfo():
         cur.execute("SELECT list_name, archive_policy FROM mailinglist;")
         items = cur.fetchall()
         for k, v in items:
-            listinfo[k] = bool(v)
+            if k not in listinfo:
+                listinfo[k] = {}
+            listinfo[k]['archive'] = bool(v)
     except Exception as e:
         log("Exception when reading Mailman 3 listinfo: %s" % e)
     log("Read %s Mailman 3 listinfo entries, total %s" % (len(listinfo) - mailman_2_count, len(listinfo)))        
@@ -359,23 +361,24 @@ def cache_mail():
             except Exception:
                 list = msg['List-Id'].strip('<>').replace('.ietf.org', '')
             if not list in listinfo:
+                has_archive = False
                 try:
                     conn = psycopg2.connect()
                     cur = conn.cursor()
                     cur.execute("SELECT archive_policy FROM mailinglist WHERE list_name = %s", (list,))
-                    archive = cur.fetchone()
-                    if archive is not None:
-                        log("Mailman list archive setting for %s: %s" % (list, archive[0]))
-                        archive = bool(archive[0])
+                    policy = cur.fetchone()
+                    if policy is not None:
+                        log("Mailman list archive setting for %s: %s" % (list, policy[0]))
+                        has_archive = bool(archive[0])
                     else:
                         mmlist = MailList.MailList(list, lock=False)
                         log("Mailman list archive setting for %s: %s" % (list, mmlist.archive))
-                        archive = bool(mmlist.archive)
+                        has_archive = bool(mmlist.archive)
                 except Exception as e:
                     mmlist = None
                     log("No mailman info for list %s: %s" % (list, e))
                 listinfo[list] = {}
-                listinfo[list]['archive'] = bool(archive)
+                listinfo[list]['archive'] = has_archive
             if listinfo[list]['archive']:
                 msgid = get_msgid(msg)
                 sha = hashlib.sha1(msgid)
