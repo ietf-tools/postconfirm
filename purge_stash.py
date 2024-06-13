@@ -17,7 +17,7 @@ def main():
         description="Admin script to remove expired stash entries from the store"
     )
     parser.add_argument("-c", "--config-file", default="/etc/postconfirm.cfg", type=argparse.FileType())
-    parser.add_argument("-ttl", type=int, help="Time for stash entries to live (in seconds)")
+    parser.add_argument("--ttl", type=int, help="Time for stash entries to live (in seconds)")
     parser.add_argument("-n", "--dry-run", action='store_true', help="Do not actually modify the data")
 
     args = parser.parse_args()
