@@ -31,7 +31,8 @@ def maybe_chmod(path, mode):
 class PostInstallCommand(install):
     """Post-installation for installation mode."""
     def run(self):
-        import config, pwd, grp, sys, stat
+        from postconfirm import config
+        import pwd, grp, sys, stat
 
         # -------------------------
         # Run the base installation
