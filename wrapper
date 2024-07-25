@@ -8,7 +8,7 @@ version="0.41.0"
 FILTER_BIN=/opt/postconfirm/bin/postconfirmc
 
 # Mailman's distributed mailman executable:
-MAILMAN_BIN=/opt/postconfirm/bin/mailman_bin
+MAILMAN_BIN=/opt/mailman3/VENV/bin/mailman_bin
 
 # Mail handler executable
 SENDMAIL_BIN=/usr/sbin/sendmail
