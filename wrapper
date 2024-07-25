@@ -5,16 +5,16 @@ version="0.41.0"
 # --- Configuration variables ---
 
 # the filter executable:
-FILTER_BIN=/usr/bin/postconfirmc
+FILTER_BIN=/opt/postconfirm/bin/postconfirmc
 
 # Mailman's distributed mailman executable:
-MAILMAN_BIN=/usr/lib/mailman/mail/mailman
+MAILMAN_BIN=/opt/postconfirm/bin/mailman_bin
 
 # Mail handler executable
 SENDMAIL_BIN=/usr/sbin/sendmail
 
 # Where we store mailman commands identified as spam
-SPAM_STASH=/a/postconfirm/cache
+SPAM_STASH=/opt/postconfirm/cache
 
 # --- Re-invoke with logging ---
 if [ "$RUNNING" != "$0" ]; then
@@ -33,9 +33,8 @@ fi
 #sjt first 'virtual-mailman' reduces the address to the mailbox
 #sjt then 'aliases' pipes to "$wrapper $action_suffix $list_mailbox", if the
 #sjt action suffix is missing, it is set to "post".  $wrapper is always
-#sjt "/a/postconfirm/mailman" in Mailman's alias table.
-#sjt In the postfix tables in /a/postfix/ (linked from /etc/postfix, see
-#sjt ops-postfix repo), both group-aliases and draft-aliases
+#sjt "/opt/postconfirm/bin/mailman" in Mailman's alias table.
+#sjt In the postfix tables in /etc/postfix/, both group-aliases and draft-aliases
 #sjt 
 action="$1"
 dest="$2"
@@ -101,7 +100,7 @@ elif [ "$action" = post -o "$action" = owner -o "$action" = admin -o "$action" =
     fi
 
     note "Input piped to postconfirm: '$FILTER_BIN confirm'"
-    $FILTER_BIN confirm < $tmp 2>$err | /a/postconfirm/insert_expanded_headers "$dest" > $out
+    $FILTER_BIN confirm < $tmp 2>$err | /opt/postconfirm/bin/insert_expanded_headers "$dest" > $out
     errnum=${PIPESTATUS[0]}
     
     if [ "$DEBUG" ]; then

@@ -14,8 +14,9 @@ redirection.
 	make
 	make install
 
-2. Place the 'wrapper' script in a directory of your choice, for instance
-   /usr/local/postconfirm, and create a symlink to it named 'mailman' in
+2. NOT VALID FOR MAILMAN 3
+   Place the 'wrapper' script in a directory of your choice, for instance
+   /opt/postconfirm/bin, and create a symlink to it named 'mailman' in
    the same directory.  Then edit the WRAPPER_DIR variable in
    /etc/mailman/mm_cfg.py to reflect the directory you placed the script
    in.  ('make install' will install 'wrapper' in /usr/share/postconfirm,
@@ -30,6 +31,6 @@ redirection.
 4. Edit /etc/postconfirm.conf (or /etc/postconfirm/postconfirm.conf) to fit
    your system.
 
-5. Start the postconfirm daemon by hand ('sudo /usr/share/postconfirm/postconfirmd')
+5. Start the postconfirm daemon by hand ('sudo /opt/postconfirm/bin/postconfirmd')
    or by running the init script 'sudo /etc/init.d/postconfirmd start'
 

@@ -10,18 +10,22 @@
 #		     email addresses from whom posts may be passed through to a recipient.			
 ### END INIT INFO
 
+#### This isn't actually used, I hope! -- sjt
+
 # Author: Henrik Levkowetz <henrik@levkowetz.com>
 #
 
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="Postconfirm server daemon"
 NAME=postconfirmd
-DAEMON=/usr/local/sbin/$NAME
-PYTHON=/usr/local/python2.7/bin/python2
+DAEMON=/opt/postconfirm/bin/$NAME
+PYTHON=/opt/postconfirm/bin/python2
 # set DAEMON_ARGS="-d" to enable debug output to /var/log/user.log
 DAEMON_ARGS=""
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
+
+#### Everything below here is standard and should not depend on installation
 
 # Exit if the package is not installed
 [ -x "$DAEMON" ] || exit 0

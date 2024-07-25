@@ -1,4 +1,4 @@
-PYTHONPREFIX=/usr/local/python2.7
+PYTHONPREFIX=/opt/postconfirm
 CFLAGS=-I$(PYTHONPREFIX)/include/python2.7
 LDFLAGS=-L$(PYTHONPREFIX)/lib
 OFLAGS=-pthread -fno-strict-aliasing -DNDEBUG -g -fwrapv -O2 -fPIC -I/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7

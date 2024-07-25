@@ -1,4 +1,4 @@
-#!/usr/local/python2.7/bin/python2
+#!/opt/postconfirm/bin/python2
 # -*- python -*-
 
 """

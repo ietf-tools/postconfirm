@@ -1,4 +1,4 @@
-#!/usr/local/python2.7/bin/python2
+#!/opt/postconfirm/bin/python2
 
 ## Script to insert Resent-From and Resent-To headers into emails received via stdin.
 ##
@@ -17,7 +17,7 @@ import sys
 found = 0
 
 def expandDraft(draftname):
-    files = ["/a/postfix/draft-virtual","/a/postfix/group-virtual"]
+    files = ["/etc/postfix/draft-virtual","/etc/postfix/group-virtual"]
     result=""
     for fn in files:
     	try:	
