@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Iterable, Optional, Tuple
 
 from config import Config
@@ -7,6 +8,8 @@ from .typing import Action
 
 from src import services
 from src.db import get_db_pool
+
+logger = logging.getLogger(__name__)
 
 
 class HandlerDb:
@@ -115,7 +118,7 @@ class HandlerDb:
         """
         with get_db_pool(self.app_config["db"], "db").connection() as connection:
             with connection.cursor() as cursor:
-                encoded_ref = json.dumps(ref) if ref else None
+                parsed_ref = ref[0] if ref else None
 
                 try:
                     cursor.execute(
@@ -125,9 +128,9 @@ class HandlerDb:
                             VALUES
                                 (%(sender)s, %(action)s, %(ref)s, 'E', 'postconfirm')
                             ON CONFLICT (sender)
-                                DO UPDATE SET action=%(action)s
+                                DO UPDATE SET action=%(action)s, updated=now()
                         """,
-                        {"sender": sender, "action": action, "ref": encoded_ref}
+                        {"sender": sender, "action": action, "ref": parsed_ref}
                     )
                     connection.commit()
                     return True

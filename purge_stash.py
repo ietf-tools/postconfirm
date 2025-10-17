@@ -1,12 +1,9 @@
 import argparse
-import datetime
 import logging
-from os.path import basename
 
 import config
 
 from src.db import get_db_pool
-
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +14,7 @@ def main():
         description="Admin script to remove expired stash entries from the store"
     )
     parser.add_argument("-c", "--config-file", default="/etc/postconfirm.cfg", type=argparse.FileType())
-    parser.add_argument("--ttl", type=int, help="Time for stash entries to live (in seconds)")
+    parser.add_argument("--ttl", type=str, help="Time for stash entries to live (in seconds)")
     parser.add_argument("-n", "--dry-run", action='store_true', help="Do not actually modify the data")
 
     args = parser.parse_args()
@@ -28,16 +25,13 @@ def main():
     # Set up the root logger
     logging.basicConfig(level=app_config.get('log.level', logging.WARNING))
 
-    ttl = args.ttl or app_config.get("purge.time_to_live", 86400)
+    ttl = args.ttl or app_config.get("purge.time_to_live", "86400s")
 
     # We need to create a connection and start a transaction
     with get_db_pool(app_config["db"], "db").connection() as connection:
         with connection.cursor() as cursor:
 
-            ttl_interval = datetime.timedelta(seconds=ttl)
-
             # We start by gathering details of the expired entries.
-
             cursor.execute(
                 """
                 SELECT
@@ -45,9 +39,9 @@ def main():
                 FROM
                     stash
                 WHERE
-                    created < DATE_SUBTRACT(CURRENT_TIMESTAMP, %(interval)s)
+                    created < date_subtract(now(), %(interval)s::interval)
                 """,
-                {"interval": ttl_interval}
+                {"interval": ttl}
             )
 
             ids_by_sender = {}

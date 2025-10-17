@@ -1,0 +1,147 @@
+# Default values for postconfirm.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+replicaCount: 1
+
+# This sets the container image more information can be found here: https://kubernetes.io/docs/concepts/containers/images/
+image:
+  repository: ghcr.io/ietf-tools/postconfirm
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+# This is for the secrets for pulling an image from a private repository more information can be found here: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# This is for setting Kubernetes Annotations to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+# This is for setting Kubernetes Labels to a Pod.
+# For more information checkout: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+# This is for setting up a service more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/
+service:
+  # This sets the service type more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#publishing-services-service-types
+  type: ClusterIP
+  # This sets the ports more information can be found here: https://kubernetes.io/docs/concepts/services-networking/service/#field-spec-ports
+  port: 1999
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+
+# This section is for setting up autoscaling more information can be found here: https://kubernetes.io/docs/concepts/workloads/autoscaling/
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+secret:
+  create: false
+  name: db-app
+  data:
+    dbname: postconfirm
+    host: dbserver
+    port: 5432
+    username: postconfirm
+    password: postconfirm
+
+postconfirm:
+  hash_key: dMrF3uemYNIuo9YDQShvumr1QNjr0INX
+  template: |
+    Welcome to the Internet Engineering Task Force (IETF) and its companion organizations, the Internet Architecture Board (IAB) and Internet Research Task Force (IRTF).
+
+    We have received an email from your email address, "{{ sender_address }}", sent to "{{ recipient_address }}", with the subject
+    {{ subject }}
+
+    As this is the first time we have received an email from {{ sender_address }}, your email will not be delivered until you confirm that you sent it by replying to this message with the confirmation code in the subject line intact. You do not need to write anything in your reply.
+
+    Please note that by replying to this message, you agree to follow IETF processes and policies, a reminder of which is given in the IETF Note Well (https://www.ietf.org/about/note-well/), and in doing so you consent to the use of your information in accordance with the IETF/IRTF/IAB Privacy Statement (https://www.ietf.org/privacy-statement/).
+
+    If you did not send this message or do not want it delivered, you do not need to do anything.
+
+    If you have any questions, please forward this email to {{ admin_address }} and we will be happy to assist.
+
+    --
+    The IETF (including the IAB, IRTF and RFC Editor)
+    https://www.ietf.org/
+
+    (For internal use only: {{ id }})
+  smtp_host: smtp.myhost.com
+  smtp_port: 25
+  remail_sender: verify@example.com
+  mail_admin: admin@example.com
+  database:
+    host:
+      existingSecretName: db-app
+      existingSecretKey: host
+    user:
+      existingSecretName: db-app
+      existingSecretKey: username
+    db_name:
+      existingSecretName: db-app
+      existingSecretKey: dbname
+    password:
+      existingSecretName: db-app
+      existingSecretKey: password
+

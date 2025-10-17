@@ -35,7 +35,7 @@ class Remailer:
         connection = self.get_connection()
 
         try:
-            return connection.sendmail(sender or self.sender_from, recipients, message)
+            return connection.sendmail(sender or self.sender_from, recipients, message.encode("UTF-8"))
         except Exception as e:
             logger.error("Exception in SMTP: %(reason)s", {"reason": str(e)})
 

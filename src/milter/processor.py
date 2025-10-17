@@ -4,6 +4,8 @@ import re
 import string
 from typing import Union, Optional
 
+from email.header import decode_header
+
 import chevron
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
@@ -103,12 +105,14 @@ def send_challenge(sender: Sender, subject: str, recipients: list[str], referenc
             "challenge_address": challenge_address,
             "admin_address": admin_address,
             "id": reference,
+            "full_ref": get_challenge_subject(sender.email, recipients, reference),
         })
 
         headers = [
             ("From", f" {challenge_address}"),
             ("To", f" {sender.email}"),
             ("Subject", get_challenge_subject(sender.email, recipients, reference)),
+            ("Auto-Submitted", " auto-replied"),
         ]
 
         challenge_message = reform_email_text(headers, [message_text])
@@ -122,7 +126,7 @@ def get_challenge_token_from_subject(subject: str) -> str:
     """
     Extracts the challenge token from the subject
     """
-    match = re.match(r"Confirm: (?P<token>(?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?))\s*$", subject, re.IGNORECASE)
+    match = re.match(r".*Confirm: (?P<token>(?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?))\s*$", subject)
     return match["token"] if match else None
 
 
@@ -148,14 +152,22 @@ async def extract_headers(session: Session) -> tuple[Optional[str], list]:
 
     async with session.headers as headers:
         async for header in headers:
-            value = header.value.tobytes().decode()
+            value = header.value.decode()
 
             if header.name.lower() == "subject":
                 mail_subject = value.lstrip()
+                if mail_subject:
+                    try:
+                        fixed_subject = bytes(decode_header(mail_subject)[0][0]).decode(decode_header(mail_subject)[0][1])
+                    except:
+                        fixed_subject = mail_subject
 
             mail_headers.append((header.name, value))
 
-    return (mail_subject, mail_headers)
+    try:
+        return (fixed_subject, mail_headers)
+    except NameError:
+        return ('', mail_headers)
 
 
 async def extract_body(session: Session) -> list:
@@ -177,13 +189,13 @@ def extract_reference(mail_headers: list[dict]) -> str:
     message_id = next((header[1] for header in mail_headers if header[0].lower() == "message-id"), None)
 
     if message_id:
-        matches = re.match(r" <?(.*?)@", message_id)
+        matches = re.match(r"<?(.*?)@", message_id)
         if matches:
             return matches[1].replace(":", "")
 
     logging.warning("Message is missing a Message ID. Generating a reference code")
 
-    return ''.join(random.choice(IDENTIFIER_CHARS, 10))
+    return ''.join(random.sample(IDENTIFIER_CHARS, 10))
 
 
 def release_messages(sender: Sender) -> None:

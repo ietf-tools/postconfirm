@@ -174,7 +174,7 @@ challenges: [
         }
     }
 ]
-milter_port: 2001
+milter_port: 1999
 
 # Settings for import/migration.
 

@@ -16,7 +16,7 @@ async def main():
         prog="postconfirm",
         description="Milter handler for confirming that emails come from valid email addresses"
     )
-    parser.add_argument("-c", "--config-file", default="/etc/postconfirm.cfg", type=argparse.FileType())
+    parser.add_argument("-c", "--config-file", default="/app/etc/postconfirm.cfg", type=argparse.FileType())
     parser.add_argument("-p", "--port")
 
     args = parser.parse_args()

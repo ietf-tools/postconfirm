@@ -1,12 +1,11 @@
 import logging
-from typing import Optional, Iterable
+from typing import Iterable, Optional
 
 from config import Config
 
 from src.db import get_db_pool
 
 from .typing import Action
-
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ class HandlerQuery:
 
     def _get_db_config(self):
         return self.handler_config["db"]
-    
+
     def _get_name(self):
         return self.handler_config["name"]
 
@@ -26,7 +25,7 @@ class HandlerQuery:
         Splits the email address into a local part and a domain.
         """
         return email.split('@', maxsplit=1)
-    
+
     def get_action(self, email: str) -> Optional[Action]:
         """
         Return any action for the given challenge email
