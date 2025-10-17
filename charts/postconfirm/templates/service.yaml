@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postconfirm.fullname" . }}
+  labels:
+    {{- include "postconfirm.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      protocol: TCP
+      name: postconfirm
+  selector:
+    {{- include "postconfirm.selectorLabels" . | nindent 4 }}
