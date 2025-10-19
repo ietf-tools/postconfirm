@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "postconfirm.fullname" . }}-key
+  labels:
+    app: {{ template "postconfirm.name" . }}
+    chart: {{ template "postconfirm.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+{{- if .Values.extraLabels }}
+{{ toYaml .Values.extraLabels | indent 4 }}
+{{- end }}
+data:
+  key: {{ .Values.postconfirm.hash_key }}
