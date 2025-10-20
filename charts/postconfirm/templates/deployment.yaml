@@ -88,12 +88,28 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
+            - name: postconfirm-template
+              mountPath: /app/etc/confirm.email.mustache
+              subPath: confirm.email.mustache
+            - name: hash-key
+              mountPath: /app/etc/key
+              subPath: key
+              readOnly: true
+          {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.volumes }}
       volumes:
+        - name: postconfirm-template
+          configMap:
+            name: postconfirm-template
+        - name: hash-key
+          secret:
+            secretName: {{ .Values.postconfirm.hashkey.existingSecretName }}
+            items:
+              - key: {{ .Values.postconfirm.hashkey.existingSecretKey }}
+                path: key
+      {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}
