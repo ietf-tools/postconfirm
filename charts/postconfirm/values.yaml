@@ -86,9 +86,6 @@ volumes: []
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts: []
-# - name: foo
-#   mountPath: "/etc/foo"
-#   readOnly: true
 
 nodeSelector: {}
 
@@ -96,7 +93,7 @@ tolerations: []
 
 affinity: {}
 
-secret:
+secret_db:
   create: false
   name: db-app
   data:
@@ -106,8 +103,13 @@ secret:
     username: postconfirm
     password: postconfirm
 
+secret_hashkey:
+  create: false
+  name: postconfirm_hashkey
+  data:
+    hashkey: acPDJUqXsRSQ8H3IBRK2qfcyAYJdsG1D
+
 postconfirm:
-  hash_key: dMrF3uemYNIuo9YDQShvumr1QNjr0INX
   template: |
     Welcome to the Internet Engineering Task Force (IETF) and its companion organizations, the Internet Architecture Board (IAB) and Internet Research Task Force (IRTF).
 
@@ -131,6 +133,9 @@ postconfirm:
   smtp_port: 25
   remail_sender: verify@example.com
   mail_admin: admin@example.com
+  hashkey:
+    existingSecretName: secret_hashkey
+    existingSecretKey: hashkey
   database:
     host:
       existingSecretName: db-app
@@ -144,4 +149,3 @@ postconfirm:
     password:
       existingSecretName: db-app
       existingSecretKey: password
-
