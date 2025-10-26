@@ -62,11 +62,13 @@ spec:
                   name: {{ tpl .Values.postconfirm.database.password.existingSecretName . }}
                   key: {{ tpl .Values.postconfirm.database.password.existingSecretKey . }}
             - name: MAIL_TEMPLATE
-              value: /app/confirm.email.mustache
+              value: /app/etc/confirm.email.mustache
             - name: SMTP_HOST
               value: {{ .Values.postconfirm.smtp_host }}
             - name: SMTP_PORT
               value: '{{ .Values.postconfirm.smtp_port }}'
+            - name: SMTP_HELO_HOST
+              value: {{ .Values.postconfirm.smtp_helo_host }}
             - name: REMAIL_SENDER
               value: {{ .Values.postconfirm.remail_sender }}
             - name: MAIL_ADMIN
