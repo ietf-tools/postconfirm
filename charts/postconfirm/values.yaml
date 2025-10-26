@@ -131,6 +131,7 @@ postconfirm:
     (For internal use only: {{ id }})
   smtp_host: smtp.myhost.com
   smtp_port: 25
+  smtp_helo_host: localhost
   remail_sender: verify@example.com
   mail_admin: admin@example.com
   hashkey:

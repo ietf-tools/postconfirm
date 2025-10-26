@@ -21,6 +21,7 @@ class Remailer:
     def __init__(self, app_config: Config):
         self.host = app_config.get("smtp_host", "localhost")
         self.port = app_config.get("smtp_port", 25)
+        self.helo_host = app_config.get("smtp_helo_host", "localhost")
         self.sender_from = app_config.get("remail_sender", "<>")
 
         self.smtp = None
@@ -35,7 +36,9 @@ class Remailer:
         connection = self.get_connection()
 
         try:
-            return connection.sendmail(sender or self.sender_from, recipients, message.encode("UTF-8"))
+            return connection.sendmail(
+                sender or self.sender_from, recipients, message.encode("UTF-8")
+            )
         except Exception as e:
             logger.error("Exception in SMTP: %(reason)s", {"reason": str(e)})
 
@@ -66,4 +69,4 @@ class Remailer:
             return False
 
     def _init_smtp_connection(self) -> None:
-        self.smtp = SMTP(host=self.host, port=self.port)
+        self.smtp = SMTP(host=self.host, port=self.port, local_hostname=self.helo_host)
