@@ -52,12 +52,13 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
             services["app_config"].get("auto_submitted_regex", r"^auto-")
         )
 
-    for name, entry in headers:
-        if name in header_drop_matchers:
+    for header, entry in headers:
+        if header in header_drop_matchers:
             trimmed_entry = entry.lstrip()
 
-            if header_drop_matchers[name].search(trimmed_entry):
-                logger.debug("Dropping: header {name} matched {entry}", extra={"name": name, "entry": entry})
+            if header_drop_matchers[header].search(trimmed_entry):
+                logger.debug("Dropping: header {header} matched {entry}",
+                             extra={"header": header, "entry": entry})
                 return True
 
     return False
