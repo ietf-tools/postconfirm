@@ -66,8 +66,10 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
 
 def subject_is_challenge_response(subject: str) -> bool:
     if not subject:
+        logger.debug("no subject")
         return False
 
+    logger.debug("subject is %(subject)s", {"subject": subject})
     token = get_challenge_token_from_subject(subject)
 
     return True if token else False
