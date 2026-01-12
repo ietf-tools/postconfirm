@@ -69,7 +69,7 @@ spec:
               value: '{{ .Values.postconfirm.smtp_port }}'
             - name: SMTP_HELO_HOST
               value: {{ .Values.postconfirm.smtp_helo_host }}
-            - name: REMAIL_SENDER
+            - name: MAIL_FROM
               value: {{ .Values.postconfirm.remail_sender }}
             - name: MAIL_ADMIN
               value: {{ .Values.postconfirm.mail_admin }}
