@@ -66,8 +66,10 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
 
 def subject_is_challenge_response(subject: str) -> bool:
     if not subject:
+        logger.debug("no subject")
         return False
 
+    logger.debug("subject is %(subject)s", {"subject": subject})
     token = get_challenge_token_from_subject(subject)
 
     return True if token else False
@@ -258,7 +260,9 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     (mail_subject, mail_headers) = await extract_headers(session)
 
-    is_challenge_response = subject_is_challenge_response(mail_subject)
+    cleaned_subject=mail_subject.replace("\n","")
+
+    is_challenge_response = subject_is_challenge_response(cleaned_subject)
 
     should_drop = message_should_be_dropped(mail_headers)
 
@@ -301,7 +305,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         if action in actions_to_challenge:
             logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
-            send_challenge(sender, mail_subject, challenge_recipients, challenge_reference)
+            send_challenge(sender, cleaned_subject, challenge_recipients, challenge_reference)
 
         return Discard()
 
@@ -310,7 +314,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         action = sender.get_action()
 
         if action == "confirm":
-            token = get_challenge_token_from_subject(mail_subject)
+            token = get_challenge_token_from_subject(cleaned_subject)
 
             if not services["validator"].validate_token(sender.email, token, sender.get_refs()):
                 # Reject the message
