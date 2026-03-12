@@ -24,6 +24,12 @@ class Remailer:
         self.helo_host = app_config.get("smtp_helo_host", "localhost")
         self.sender_from = app_config.get("remail_sender", "<>")
 
+        self.username = app_config.get("smtp_username", None)
+        self.password = app_config.get("smtp_password", None)
+
+        if bool(self.username) != bool(self.password):
+            raise ValueError("smtp_username and smtp_password must both be set or both be unset")
+
         self.smtp = None
 
     def get_connection(self) -> SMTP:
