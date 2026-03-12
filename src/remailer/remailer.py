@@ -16,6 +16,12 @@ class Remailer:
     * `smtp_host` (defaults to "localhost") as the host to send via
     * `smtp_port` (defaults to 25) as the port to connect to on the `smtp_host`
     * `remailer_sender` (defaults to "<>") as the default envelope sender
+    * `smtp_username` (optional) username for SASL PLAIN authentication
+    * `smtp_password` (optional) password for SASL PLAIN authentication
+
+    When `smtp_username` and `smtp_password` are both set, the connection
+    will negotiate STARTTLS before authenticating. Both must be set or both
+    must be unset.
     """
 
     def __init__(self, app_config: Config):
