@@ -76,3 +76,6 @@ class Remailer:
 
     def _init_smtp_connection(self) -> None:
         self.smtp = SMTP(host=self.host, port=self.port, local_hostname=self.helo_host)
+        if self.username:
+            self.smtp.starttls()
+            self.smtp.login(self.username, self.password)
