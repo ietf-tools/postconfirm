@@ -93,6 +93,13 @@ tolerations: []
 
 affinity: {}
 
+secret_smtp:
+  create: false
+  name: smtp-credentials
+  data:
+    username: postconfirm
+    password: changeme
+
 secret_db:
   create: false
   name: db-app
@@ -134,6 +141,10 @@ postconfirm:
   smtp_helo_host: localhost
   remail_sender: verify@example.com
   mail_admin: admin@example.com
+  smtp_auth:
+    existingSecretName: smtp-credentials
+    usernameKey: username
+    passwordKey: password
   hashkey:
     existingSecretName: secret_hashkey
     existingSecretKey: hashkey

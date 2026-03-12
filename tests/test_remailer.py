@@ -1,6 +1,6 @@
 from io import StringIO
 from os.path import dirname
-from smtplib import SMTPServerDisconnected
+from smtplib import SMTPAuthenticationError, SMTPServerDisconnected
 from unittest.mock import Mock, patch
 
 import config
@@ -10,6 +10,7 @@ from src.remailer.remailer import Remailer
 
 empty_cfg = config.Config(StringIO(""))
 cfg = config.Config(f"{dirname(__file__)}/fixtures/config.cfg")
+auth_cfg = config.Config(f"{dirname(__file__)}/fixtures/config_auth.cfg")
 
 
 class TestRemailer:
@@ -88,3 +89,42 @@ class TestRemailer:
             mock_smtp.return_value.sendmail.assert_called_with(
                 sender, recipients, message
             )
+
+
+class TestRemailerAuth:
+    @patch("src.remailer.remailer.SMTP")
+    def test_starttls_and_login_called(self, mock_smtp):
+        """With credentials, connection does STARTTLS then LOGIN."""
+        mailer = Remailer(auth_cfg)
+        mailer.get_connection()
+
+        mock_smtp.return_value.starttls.assert_called_once()
+        mock_smtp.return_value.login.assert_called_once_with(
+            "postconfirm@example.com", "testpass"
+        )
+
+    @patch("src.remailer.remailer.SMTP")
+    def test_no_auth_without_credentials(self, mock_smtp):
+        """Without credentials, connection skips STARTTLS and LOGIN."""
+        mailer = Remailer(cfg)
+        mailer.get_connection()
+
+        mock_smtp.return_value.starttls.assert_not_called()
+        mock_smtp.return_value.login.assert_not_called()
+
+    def test_mismatched_credentials_raises(self):
+        """Username without password (or vice versa) raises ValueError."""
+        with pytest.raises(ValueError, match="smtp_username and smtp_password must both be set"):
+            Remailer(config.Config(StringIO("smtp_username: 'user@example.com'")))
+
+        with pytest.raises(ValueError, match="smtp_username and smtp_password must both be set"):
+            Remailer(config.Config(StringIO("smtp_password: 'secret'")))
+
+    @patch("src.remailer.remailer.SMTP")
+    def test_auth_failure_propagates(self, mock_smtp):
+        """SMTPAuthenticationError from login() is not swallowed."""
+        mock_smtp.return_value.login.side_effect = SMTPAuthenticationError(535, b"bad creds")
+
+        mailer = Remailer(auth_cfg)
+        with pytest.raises(SMTPAuthenticationError):
+            mailer.get_connection()
