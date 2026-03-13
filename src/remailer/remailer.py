@@ -1,5 +1,6 @@
 import logging
-from smtplib import SMTP
+
+from aiosmtplib import SMTP
 
 from config import Config
 
@@ -37,23 +38,18 @@ class Remailer:
                 "smtp_username and smtp_password must both be set or both be unset"
             )
 
-    def sendmail(self, recipients: list[str], message: str, sender: str = None) -> any:
+    async def sendmail(self, recipients: list[str], message: str, sender: str = None) -> any:
         if sender is None:
             sender = self.sender_from
         try:
-            with SMTP(
-                host=self.host, port=self.port, local_hostname=self.helo_host
+            async with SMTP(
+                hostname=self.host, port=self.port, local_hostname=self.helo_host
             ) as smtp:
                 if self.username:
-                    smtp.starttls()
-                    smtp.login(self.username, self.password)
-                return smtp.sendmail(sender, recipients, message.encode("UTF-8"))
+                    await smtp.starttls()
+                    await smtp.login(self.username, self.password)
+                return await smtp.sendmail(sender, recipients, message.encode("UTF-8"))
         except Exception as e:
             logger.error("Exception in SMTP: %(reason)s", {"reason": str(e)})
             return False
 
-    def __enter__(self) -> any:
-        return self
-
-    def __exit__(self, type, value, traceback) -> bool:
-        return True
