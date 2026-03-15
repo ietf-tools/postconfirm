@@ -1,6 +1,6 @@
 from io import StringIO
 from os.path import dirname
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 import config
 import pytest
@@ -151,9 +151,7 @@ class TestRemailerAuth:
         await mailer.sendmail(["a@example.com"], "test")
 
         mock_conn.starttls.assert_awaited_once()
-        mock_conn.login.assert_awaited_once_with(
-            "postconfirm@example.com", "testpass"
-        )
+        mock_conn.login.assert_awaited_once_with("postconfirm@example.com", "testpass")
 
     @pytest.mark.asyncio
     @patch("src.remailer.remailer.SMTP")
@@ -169,10 +167,14 @@ class TestRemailerAuth:
         mock_conn.login.assert_not_awaited()
 
     def test_mismatched_credentials_raises(self):
-        with pytest.raises(ValueError, match="smtp_username and smtp_password must both be set"):
+        with pytest.raises(
+            ValueError, match="smtp_username and smtp_password must both be set"
+        ):
             Remailer(config.Config(StringIO("smtp_username: 'user@example.com'")))
 
-        with pytest.raises(ValueError, match="smtp_username and smtp_password must both be set"):
+        with pytest.raises(
+            ValueError, match="smtp_username and smtp_password must both be set"
+        ):
             Remailer(config.Config(StringIO("smtp_password: 'secret'")))
 
     @pytest.mark.asyncio
