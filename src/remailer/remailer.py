@@ -1,7 +1,6 @@
 import logging
 
 from aiosmtplib import SMTP
-
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -63,7 +62,6 @@ class Remailer:
                 validate_certs=self.validate_certs
             ) as smtp:
                 if self.username:
-                    await smtp.starttls()
                     await smtp.login(self.username, self.password)
                 return await smtp.sendmail(sender, recipients, message.encode("UTF-8"))
         except Exception as e:
