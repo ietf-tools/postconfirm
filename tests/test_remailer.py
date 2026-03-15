@@ -19,6 +19,7 @@ class TestRemailer:
         assert mailer.host == "localhost"
         assert mailer.port == 25
         assert mailer.sender_from == "<>"
+        assert mailer.validate_certs is False
 
     def test_it_initialises_from_config(self):
         mailer = Remailer(cfg)
@@ -76,6 +77,66 @@ class TestRemailer:
         result = await mailer.sendmail(["a@example.com"], "test")
 
         assert result is False
+
+
+class TestRemailerValidateCerts:
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ("True", True),
+            ("true", True),
+            ("TRUE", True),
+            ("1", True),
+            ("yes", True),
+            ("Yes", True),
+            ("y", True),
+            ("t", True),
+            ("False", False),
+            ("false", False),
+            ("0", False),
+            ("no", False),
+            ("", False),
+            ("anything_else", False),
+        ],
+    )
+    def test_validate_certs_string_parsing(self, value, expected):
+        cfg_str = f"smtp_validate_certs: '{value}'"
+        mailer = Remailer(config.Config(StringIO(cfg_str)))
+        assert mailer.validate_certs is expected
+
+    @pytest.mark.asyncio
+    @patch("src.remailer.remailer.SMTP")
+    async def test_validate_certs_passed_to_smtp(self, mock_smtp_cls):
+        mock_conn = AsyncMock()
+        mock_smtp_cls.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_smtp_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        mailer = Remailer(config.Config(StringIO("smtp_validate_certs: 'true'")))
+        await mailer.sendmail(["a@example.com"], "test")
+
+        mock_smtp_cls.assert_called_once_with(
+            hostname="localhost",
+            port=25,
+            local_hostname="localhost",
+            validate_certs=True,
+        )
+
+    @pytest.mark.asyncio
+    @patch("src.remailer.remailer.SMTP")
+    async def test_validate_certs_false_passed_to_smtp(self, mock_smtp_cls):
+        mock_conn = AsyncMock()
+        mock_smtp_cls.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_smtp_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        mailer = Remailer(empty_cfg)
+        await mailer.sendmail(["a@example.com"], "test")
+
+        mock_smtp_cls.assert_called_once_with(
+            hostname="localhost",
+            port=25,
+            local_hostname="localhost",
+            validate_certs=False,
+        )
 
 
 class TestRemailerAuth:
