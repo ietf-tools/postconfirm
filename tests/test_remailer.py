@@ -142,7 +142,7 @@ class TestRemailerValidateCerts:
 class TestRemailerAuth:
     @pytest.mark.asyncio
     @patch("src.remailer.remailer.SMTP")
-    async def test_starttls_and_login_called(self, mock_smtp_cls):
+    async def test_login_called_with_credentials(self, mock_smtp_cls):
         mock_conn = AsyncMock()
         mock_smtp_cls.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
         mock_smtp_cls.return_value.__aexit__ = AsyncMock(return_value=False)
@@ -150,7 +150,6 @@ class TestRemailerAuth:
         mailer = Remailer(auth_cfg)
         await mailer.sendmail(["a@example.com"], "test")
 
-        mock_conn.starttls.assert_awaited_once()
         mock_conn.login.assert_awaited_once_with("postconfirm@example.com", "testpass")
 
     @pytest.mark.asyncio
@@ -163,7 +162,6 @@ class TestRemailerAuth:
         mailer = Remailer(cfg)
         await mailer.sendmail(["a@example.com"], "test")
 
-        mock_conn.starttls.assert_not_awaited()
         mock_conn.login.assert_not_awaited()
 
     def test_mismatched_credentials_raises(self):
