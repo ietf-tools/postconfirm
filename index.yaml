@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   postconfirm:
   - apiVersion: v2
+    appVersion: 2.1.0
+    created: "2026-03-15T20:07:07.037529136Z"
+    description: A Helm chart for deploying postconfirm in Kubernetes
+    digest: 04559fe78830d87842cd8c8e28665db24f037928c52925dcf58b6acbfe6b3f15
+    name: postconfirm
+    type: application
+    urls:
+    - https://github.com/ietf-tools/postconfirm/releases/download/postconfirm-2.1.0/postconfirm-2.1.0.tgz
+    version: 2.1.0
+  - apiVersion: v2
     appVersion: 2.0.4
     created: "2026-03-13T01:37:01.270004487Z"
     description: A Helm chart for deploying postconfirm in Kubernetes
@@ -81,4 +91,4 @@ entries:
     urls:
     - https://github.com/ietf-tools/postconfirm/releases/download/postconfirm-1.0.0/postconfirm-1.0.0.tgz
     version: 1.0.0
-generated: "2026-03-13T01:37:01.270033421Z"
+generated: "2026-03-15T20:07:07.037560906Z"
