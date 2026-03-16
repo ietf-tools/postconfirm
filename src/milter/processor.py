@@ -286,6 +286,12 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             logger.debug("Message flagged for challenge and sender marked for discarding")
             return Discard()
 
+        if sender.is_never_allowed():
+            logger.warning(
+                "Sender %(sender)s in never_allow, discarding without challenge",
+                {"sender": mail_from})
+            return Discard()
+
         # The remaining options are "unknown" or "confirm". In both cases
         # we need to stash the mail. That means completing the collection.
 
