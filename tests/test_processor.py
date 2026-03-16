@@ -1,15 +1,23 @@
+import tempfile
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from src import services
+from src.challenge.challenge import Challenge
 from src.milter.processor import (
     cleanup_mail,
     extract_reference,
     form_header,
+    get_challenge_subject,
     get_challenge_token_from_subject,
     message_should_be_dropped,
+    recipient_requires_challenge,
     reform_email_text,
     subject_is_challenge_response,
 )
+from src.validator.validator import Validator
+from tests.mocks.challenge_handler import MockChallengeHandler
 
 
 class TestCleanupMail:
@@ -150,3 +158,71 @@ class TestReformEmailText:
         body = ["Hello ", "world"]
         result = reform_email_text(headers, body)
         assert result == "From: a@b.c\nTo: d@e.f\n\nHello world"
+
+
+def _make_challenge(email, action):
+    handler = MockChallengeHandler(actions={email: action})
+    return Challenge(email, [handler])
+
+
+class TestRecipientRequiresChallenge:
+    @patch("src.milter.processor.get_challenge")
+    def test_no_challenge_recipients(self, mock_get_challenge):
+        mock_get_challenge.side_effect = lambda e: _make_challenge(e, "unknown")
+        result = recipient_requires_challenge(["a@example.com", "b@example.com"])
+        assert result is False
+
+    @patch("src.milter.processor.get_challenge")
+    def test_one_challenge_recipient(self, mock_get_challenge):
+        mock_get_challenge.side_effect = lambda e: _make_challenge(e, "challenge")
+        result = recipient_requires_challenge(["a@example.com"])
+        assert result == ["a@example.com"]
+
+    @patch("src.milter.processor.get_challenge")
+    def test_mixed_recipients(self, mock_get_challenge):
+        actions = {
+            "a@example.com": "challenge",
+            "b@example.com": "ignore",
+            "c@example.com": "unknown",
+        }
+        mock_get_challenge.side_effect = lambda e: _make_challenge(e, actions[e])
+        result = recipient_requires_challenge(list(actions.keys()))
+        assert result == ["a@example.com"]
+
+    @patch("src.milter.processor.get_challenge")
+    def test_ignore_not_included(self, mock_get_challenge):
+        mock_get_challenge.side_effect = lambda e: _make_challenge(e, "ignore")
+        result = recipient_requires_challenge(["a@example.com"])
+        assert result is False
+
+
+def _make_test_validator(key: bytes = b"test-secret-key") -> Validator:
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.write(key)
+        f.flush()
+        config = MagicMock()
+        config.get.return_value = f.name
+        config.__getitem__ = lambda self, k: f.name if k == "key_file" else None
+        return Validator(config)
+
+
+class TestGetChallengeSubject:
+    @pytest.fixture(autouse=True)
+    def _setup_validator(self):
+        services["validator"] = _make_test_validator()
+        yield
+        del services["validator"]
+
+    def test_format(self):
+        result = get_challenge_subject("sender@a.com", ["rcpt@b.com"], "ref1")
+        assert result.startswith(" Confirm: ")
+        parts = result.strip().removeprefix("Confirm: ").split(":")
+        assert len(parts) == 3
+        assert parts[0] == "rcpt@b.com"
+        assert parts[1] == "ref1"
+
+    def test_token_validates(self):
+        validator = services["validator"]
+        result = get_challenge_subject("sender@a.com", ["rcpt@b.com"], "ref1")
+        token = result.strip().removeprefix("Confirm: ")
+        assert validator.validate_token("sender@a.com", token, ["ref1"]) is True
