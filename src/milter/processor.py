@@ -319,6 +319,11 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
                 logger.debug("Message is a response but is not valid")
                 return Reject()
 
+            if sender.is_never_allowed():
+                logger.warning("Sender %(sender)s in never_allow, discarding challenge response",
+                               {"sender": mail_from})
+                return Discard()
+
             logger.debug("Message is a valid confirmation response")
 
             # Mark the sender as valid
