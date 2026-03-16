@@ -112,6 +112,15 @@ class HandlerDb:
                 for row in cursor:
                     yield row
 
+    def is_never_allowed(self, sender: str) -> bool:
+        with get_db_pool(self.app_config["db"], "db").connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT 1 FROM never_allow WHERE email = %(sender)s",
+                    {"sender": sender}
+                )
+                return cursor.fetchone() is not None
+
     def set_action_for_sender(self, sender: str, action: Action, ref: str) -> bool:
         """
         Sets the action for the sender

@@ -103,6 +103,9 @@ class Sender:
 
         return refs
 
+    def is_never_allowed(self) -> bool:
+        return self.handler.is_never_allowed(self.email)
+
     def get_refs(self) -> str:
         """
         Returns the references used for confirmation
