@@ -127,7 +127,7 @@ class HandlerDb:
         """
         with get_db_pool(self.app_config["db"], "db").connection() as connection:
             with connection.cursor() as cursor:
-                parsed_ref = ref[0] if ref else None
+                parsed_ref = json.dumps(ref) if ref else None
 
                 try:
                     cursor.execute(
