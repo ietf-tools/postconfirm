@@ -78,10 +78,13 @@ class HandlerDb:
         refs = None
 
         try:
-            refs = json.loads(ref_entry)
-        except json.JSONDecodeError:
+            parsed = json.loads(ref_entry)
+            if isinstance(parsed, list):
+                refs = [str(r) for r in parsed]
+            else:
+                refs = [ref_entry]
+        except (json.JSONDecodeError, TypeError):
             if ref_entry:
-                # This must be a bare string, so make it a list.
                 refs = [ref_entry]
 
         return refs

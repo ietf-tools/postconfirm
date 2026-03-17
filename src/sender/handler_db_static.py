@@ -44,16 +44,21 @@ class HandlerDbStatic:
             result = cursor.fetchone()
 
             if result:
-                ref = result[1]
-                if ref:
+                raw_ref = result[1]
+                refs = None
+                if raw_ref:
                     try:
-                        ref = json.loads(ref)
-                    except json.JSONDecodeError:
-                        pass
+                        parsed = json.loads(raw_ref)
+                        if isinstance(parsed, list):
+                            refs = [str(r) for r in parsed]
+                        else:
+                            refs = [raw_ref]
+                    except (json.JSONDecodeError, TypeError):
+                        refs = [raw_ref]
 
                 return (
                     result[0],
-                    ref
+                    refs
                 )
 
         return ('unknown', None)
