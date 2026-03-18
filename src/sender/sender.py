@@ -4,7 +4,6 @@ from typing import Iterable, Optional
 
 from .typing import Action
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -48,15 +47,21 @@ class Sender:
         """
 
         if self.action:
-            logger.debug("action for %(email)s already defined: %(action)s", {
-                "email": self.email,
-                "action": self.action,
-            })
+            logger.debug(
+                "action for %(email)s already defined: %(action)s",
+                {
+                    "email": self.email,
+                    "action": self.action,
+                },
+            )
             return self.action
 
         action_data = self.handler.get_action_for_sender(self.email)
 
-        logger.debug("Action record for %(email)s: %(action)s", {"email": self.email, "action": action_data})
+        logger.debug(
+            "Action record for %(email)s: %(action)s",
+            {"email": self.email, "action": action_data},
+        )
 
         if not action_data:
             patterns = self.handler.get_patterns()
@@ -64,7 +69,10 @@ class Sender:
             for pattern, action, ref in patterns:
                 if re.fullmatch(pattern, self.email, re.IGNORECASE) is not None:
                     action_data = (action, ref)
-                    logger.debug("Matched pattern for %(email)s: %(action)s", {"email": self.email, "action": action_data})
+                    logger.debug(
+                        "Matched pattern for %(email)s: %(action)s",
+                        {"email": self.email, "action": action_data},
+                    )
                     break
 
         if action_data:
@@ -78,10 +86,13 @@ class Sender:
             self.action = "unknown"
             self.references = []
 
-        logger.debug("Final action for %(email)s determined: %(action)s", {
-            "email": self.email,
-            "action": self.action,
-        })
+        logger.debug(
+            "Final action for %(email)s determined: %(action)s",
+            {
+                "email": self.email,
+                "action": self.action,
+            },
+        )
 
         return self.action
 
@@ -93,10 +104,13 @@ class Sender:
         """
         refs = self.get_refs()
 
-        logger.debug("Setting action for %(email)s to be: %(action)s", {
-            "email": self.email,
-            "action": action,
-        })
+        logger.debug(
+            "Setting action for %(email)s to be: %(action)s",
+            {
+                "email": self.email,
+                "action": action,
+            },
+        )
 
         self.handler.set_action_for_sender(self.email, action, refs)
         self.action = action
@@ -123,22 +137,22 @@ class Sender:
         A given reference will only be added to the sender once.
         """
         if self.references is None:
-            logger.debug("Setting reference %(reference)s for %(email)s", {
-                "email": self.email,
-                "reference": reference
-            })
+            logger.debug(
+                "Setting reference %(reference)s for %(email)s",
+                {"email": self.email, "reference": reference},
+            )
             self.references = [reference]
         elif reference not in self.references:
-            logger.debug("Adding reference %(reference)s for %(email)s", {
-                "email": self.email,
-                "reference": reference
-            })
+            logger.debug(
+                "Adding reference %(reference)s for %(email)s",
+                {"email": self.email, "reference": reference},
+            )
             self.references.append(reference)
         else:
-            logger.debug("Skipped existing reference %(reference)s for %(email)s", {
-                "email": self.email,
-                "reference": reference
-            })
+            logger.debug(
+                "Skipped existing reference %(reference)s for %(email)s",
+                {"email": self.email, "reference": reference},
+            )
 
     def remove_reference(self, reference: str) -> None:
         """
@@ -147,21 +161,21 @@ class Sender:
         If the reference does not exist it is ignored.
         """
         if self.references is None:
-            logger.debug("Ignoring reference %(reference)s removal for %(email)s", {
-                "email": self.email,
-                "reference": reference
-            })
+            logger.debug(
+                "Ignoring reference %(reference)s removal for %(email)s",
+                {"email": self.email, "reference": reference},
+            )
         elif reference in self.references:
-            logger.debug("Removing reference %(reference)s for %(email)s", {
-                "email": self.email,
-                "reference": reference
-            })
+            logger.debug(
+                "Removing reference %(reference)s for %(email)s",
+                {"email": self.email, "reference": reference},
+            )
             self.references.remove(reference)
         else:
-            logger.debug("Skipped removal of missing reference %(reference)s for %(email)s", {
-                "email": self.email,
-                "reference": reference
-            })
+            logger.debug(
+                "Skipped removal of missing reference %(reference)s for %(email)s",
+                {"email": self.email, "reference": reference},
+            )
 
     def clear_references(self) -> list[str]:
         """
@@ -175,7 +189,9 @@ class Sender:
 
         return old_refs
 
-    def stash_message(self, msg: str, recipients: list[str], reference: str = None) -> str:
+    def stash_message(
+        self, msg: str, recipients: list[str], reference: str = None
+    ) -> str:
         """
         Stashes the email message so that it can be released after confirmation.
 

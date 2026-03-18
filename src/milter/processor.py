@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 LINE_SEP = "\n"
 
 
-IDENTIFIER_CHARS = string.ascii_letters + string.digits + '-'
+IDENTIFIER_CHARS = string.ascii_letters + string.digits + "-"
 
 
 header_drop_matchers = {}
@@ -27,7 +27,9 @@ header_drop_matchers = {}
 
 def recipient_requires_challenge(recipients: list) -> Union[False, list]:
     challenges = [get_challenge(recipient) for recipient in recipients]
-    challengeable = filter(lambda challenge: challenge.get_action() == "challenge", challenges)
+    challengeable = filter(
+        lambda challenge: challenge.get_action() == "challenge", challenges
+    )
     to_challenge = list([challenge.get_email() for challenge in challengeable])
 
     logger.debug("challenges: %(challenges)s", {"challenges": to_challenge})
@@ -54,8 +56,10 @@ def message_should_be_dropped(headers: list[dict]) -> bool:
             trimmed_entry = entry.lstrip()
 
             if header_drop_matchers[header].search(trimmed_entry):
-                logger.debug("Dropping: header {header} matched {entry}",
-                             extra={"header": header, "entry": entry})
+                logger.debug(
+                    "Dropping: header {header} matched {entry}",
+                    extra={"header": header, "entry": entry},
+                )
                 return True
 
     return False
@@ -72,7 +76,9 @@ def subject_is_challenge_response(subject: str) -> bool:
     return True if token else False
 
 
-def get_challenge_subject(sender_email: str, recipients: list[str], reference: str) -> str:
+def get_challenge_subject(
+    sender_email: str, recipients: list[str], reference: str
+) -> str:
     token = services["validator"].get_token(sender_email, recipients[0], reference)
 
     # This needs to add in the leading space.
@@ -87,26 +93,33 @@ def reform_email_text(headers: list, body_chunks: list) -> str:
     return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 
-async def send_challenge(sender: Sender, subject: str, recipients: list[str], reference: str) -> None:
+async def send_challenge(
+    sender: Sender, subject: str, recipients: list[str], reference: str
+) -> None:
     """
     Send the challenge email to the sender, with the reference
     and then update the sender to indicate this.
     """
-    template_name = services["app_config"].get("mail_template", "/etc/postconfirm/confirm.email.mustache")
+    template_name = services["app_config"].get(
+        "mail_template", "/etc/postconfirm/confirm.email.mustache"
+    )
     admin_address = services["app_config"].get("admin_address")
 
     challenge_address = recipients[0]
 
     with open(template_name, "r") as template:
-        message_text = chevron.render(template, {
-            "subject": subject,
-            "sender_address": sender.email,
-            "recipient_address": ", ".join(recipients),
-            "challenge_address": challenge_address,
-            "admin_address": admin_address,
-            "id": reference,
-            "full_ref": get_challenge_subject(sender.email, recipients, reference),
-        })
+        message_text = chevron.render(
+            template,
+            {
+                "subject": subject,
+                "sender_address": sender.email,
+                "recipient_address": ", ".join(recipients),
+                "challenge_address": challenge_address,
+                "admin_address": admin_address,
+                "id": reference,
+                "full_ref": get_challenge_subject(sender.email, recipients, reference),
+            },
+        )
 
         headers = [
             ("From", f" {challenge_address}"),
@@ -124,12 +137,15 @@ def get_challenge_token_from_subject(subject: str) -> str:
     """
     Extracts the challenge token from the subject
     """
-    match = re.match(r".*Confirm: (?P<token>(?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?))\s*$", subject)
+    match = re.match(
+        r".*Confirm: (?P<token>(?P<recipient>.*?):(?P<messageref>.*?):(?P<hash>.*?))\s*$",
+        subject,
+    )
     return match["token"] if match else None
 
 
 def cleanup_mail(email) -> str:
-    matches = re.match(r'^(.*<)?([^>]*)(>.*)?$', email.strip())
+    matches = re.match(r"^(.*<)?([^>]*)(>.*)?$", email.strip())
 
     if matches:
         return matches[2]
@@ -156,7 +172,9 @@ async def extract_headers(session: Session) -> tuple[Optional[str], list]:
                 mail_subject = value.lstrip()
                 if mail_subject:
                     try:
-                        fixed_subject = bytes(decode_header(mail_subject)[0][0]).decode(decode_header(mail_subject)[0][1])
+                        fixed_subject = bytes(decode_header(mail_subject)[0][0]).decode(
+                            decode_header(mail_subject)[0][1]
+                        )
                     except:
                         fixed_subject = mail_subject
 
@@ -165,7 +183,7 @@ async def extract_headers(session: Session) -> tuple[Optional[str], list]:
     try:
         return (fixed_subject, mail_headers)
     except NameError:
-        return ('', mail_headers)
+        return ("", mail_headers)
 
 
 async def extract_body(session: Session) -> list:
@@ -184,7 +202,10 @@ async def extract_body(session: Session) -> list:
 
 
 def extract_reference(mail_headers: list[dict]) -> str:
-    message_id = next((header[1] for header in mail_headers if header[0].lower() == "message-id"), None)
+    message_id = next(
+        (header[1] for header in mail_headers if header[0].lower() == "message-id"),
+        None,
+    )
 
     if message_id:
         matches = re.match(r"<?(.*?)@", message_id)
@@ -193,7 +214,7 @@ def extract_reference(mail_headers: list[dict]) -> str:
 
     logging.warning("Message is missing a Message ID. Generating a reference code")
 
-    return ''.join(random.sample(IDENTIFIER_CHARS, 10))
+    return "".join(random.sample(IDENTIFIER_CHARS, 10))
 
 
 async def release_messages(sender: Sender) -> None:
@@ -201,11 +222,11 @@ async def release_messages(sender: Sender) -> None:
     Releases the stashed messages relating to the sender.
     """
 
-    for (recipients, message) in sender.unstash_messages():
-        logging.debug("Releasing message from %(sender)s to %(recipients)s", {
-            "sender": sender.get_email(),
-            "recipients": ', '.join(recipients)
-        })
+    for recipients, message in sender.unstash_messages():
+        logging.debug(
+            "Releasing message from %(sender)s to %(recipients)s",
+            {"sender": sender.get_email(), "recipients": ", ".join(recipients)},
+        )
         await services["remailer"].sendmail(recipients, message, sender.get_email())
 
 
@@ -252,9 +273,9 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     # In order to tell if this is a challenge response we need the
     # subject, which means collecting all the headers.
 
-    (mail_subject, mail_headers) = await extract_headers(session)
+    mail_subject, mail_headers = await extract_headers(session)
 
-    cleaned_subject=mail_subject.replace("\n","")
+    cleaned_subject = mail_subject.replace("\n", "")
 
     is_challenge_response = subject_is_challenge_response(cleaned_subject)
 
@@ -276,20 +297,25 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         if action == "accept":
             logger.debug(
                 "Message flagged for challenge and sender -- %(sender)s -- marked for acceptance",
-                {"sender": mail_from}
+                {"sender": mail_from},
             )
             return Accept()
         elif action == "reject":
-            logger.debug("Message flagged for challenge and sender marked for rejecting")
+            logger.debug(
+                "Message flagged for challenge and sender marked for rejecting"
+            )
             return Reject()
         elif action == "discard":
-            logger.debug("Message flagged for challenge and sender marked for discarding")
+            logger.debug(
+                "Message flagged for challenge and sender marked for discarding"
+            )
             return Discard()
 
         if sender.is_never_allowed():
             logger.warning(
                 "Sender %(sender)s in never_allow, discarding without challenge",
-                {"sender": mail_from})
+                {"sender": mail_from},
+            )
             return Discard()
 
         # The remaining options are "unknown" or "confirm". In both cases
@@ -308,8 +334,13 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             actions_to_challenge.append("confirm")
 
         if action in actions_to_challenge:
-            logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
-            await send_challenge(sender, cleaned_subject, challenge_recipients, challenge_reference)
+            logger.debug(
+                "Message flagged for challenge and sender -- %(sender)s -- requires challenge",
+                {"sender": mail_from},
+            )
+            await send_challenge(
+                sender, cleaned_subject, challenge_recipients, challenge_reference
+            )
 
         return Discard()
 
@@ -320,14 +351,18 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         if action == "confirm":
             token = get_challenge_token_from_subject(cleaned_subject)
 
-            if not services["validator"].validate_token(sender.email, token, sender.get_refs()):
+            if not services["validator"].validate_token(
+                sender.email, token, sender.get_refs()
+            ):
                 # Reject the message
                 logger.debug("Message is a response but is not valid")
                 return Reject()
 
             if sender.is_never_allowed():
-                logger.warning("Sender %(sender)s in never_allow, discarding challenge response",
-                               {"sender": mail_from})
+                logger.warning(
+                    "Sender %(sender)s in never_allow, discarding challenge response",
+                    {"sender": mail_from},
+                )
                 return Discard()
 
             logger.debug("Message is a valid confirmation response")
@@ -347,4 +382,3 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     # Anything else is just accepted
     return Accept()
-

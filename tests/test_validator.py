@@ -40,7 +40,9 @@ class TestValidatorValidateHash:
 
     def test_validate_hash_incorrect(self):
         v = _make_validator()
-        assert v.validate_hash("sender@a.com", "rcpt@b.com", "ref1", "tampered") is False
+        assert (
+            v.validate_hash("sender@a.com", "rcpt@b.com", "ref1", "tampered") is False
+        )
 
 
 class TestValidatorToken:

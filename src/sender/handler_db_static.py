@@ -5,11 +5,10 @@ from typing import Iterable, Optional, Tuple
 from config import Config
 from psycopg import Cursor
 
-from .typing import Action
-
 from src import services
 from src.db import get_db_pool
 
+from .typing import Action
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ class HandlerDbStatic:
                     FROM senders_static
                     WHERE sender=%(sender)s AND type='E'
                 """,
-                {"sender": sender}
+                {"sender": sender},
             )
             result = cursor.fetchone()
 
@@ -51,26 +50,21 @@ class HandlerDbStatic:
                     except json.JSONDecodeError:
                         pass
 
-                return (
-                    result[0],
-                    ref
-                )
+                return (result[0], ref)
 
-        return ('unknown', None)
+        return ("unknown", None)
 
     def get_patterns(self) -> Iterable[Tuple[str, str, str]]:
         """
         Returns any pattern-type actions
         """
         for cursor in self._get_cursor():
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT
                     sender, action, ref
                     FROM senders_static
                     WHERE type='P'
-                """
-            )
+                """)
 
             for row in cursor:
                 yield row
@@ -92,7 +86,7 @@ class HandlerDbStatic:
                         ON CONFLICT (sender)
                             DO UPDATE SET action=%(action)s
                     """,
-                    {"sender": sender, "action": action, "ref": encoded_ref}
+                    {"sender": sender, "action": action, "ref": encoded_ref},
                 )
                 cursor.connection.commit()
                 return True
@@ -116,7 +110,11 @@ class HandlerDbStatic:
                         VALUES
                             (%(sender)s, %(recipients)s, %(message)s)
                     """,
-                    {"sender": sender, "recipients": json.dumps(recipients), "message": msg}
+                    {
+                        "sender": sender,
+                        "recipients": json.dumps(recipients),
+                        "message": msg,
+                    },
                 )
                 cursor.connection.commit()
                 return True
@@ -140,10 +138,10 @@ class HandlerDbStatic:
                         FROM stash_static
                         WHERE sender=%(sender)s
                     """,
-                    {"sender": sender}
+                    {"sender": sender},
                 )
 
-                for (row_id, recipients, message) in cursor:
+                for row_id, recipients, message in cursor:
                     yield (json.loads(recipients), message)
 
                     # Use a different cursor to avoid clobbering the in-progress loop
@@ -152,7 +150,7 @@ class HandlerDbStatic:
                         DELETE FROM stash_static
                             WHERE id=%(row_id)s
                         """,
-                        {"row_id": row_id}
+                        {"row_id": row_id},
                     )
                     cursor.connection.commit()
 

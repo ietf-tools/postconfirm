@@ -12,6 +12,7 @@ class Validator:
     """
     Provides validation services for dealing with the confirmation token
     """
+
     def __init__(self, app_config: Config):
         self.hash_key = bytes()
 
@@ -25,10 +26,10 @@ class Validator:
             with open(hash_key_filename, "rb") as f:
                 self.hash_key = f.read()
         except (FileNotFoundError, PermissionError) as e:
-            logger.error("The hash key file %(filename)s could not be opened: %(reason)s", {
-                "filename": hash_key_filename,
-                "reason": str(e)
-            })
+            logger.error(
+                "The hash key file %(filename)s could not be opened: %(reason)s",
+                {"filename": hash_key_filename, "reason": str(e)},
+            )
             return
 
     def hash(self, message_bytes: bytes) -> str:
@@ -40,12 +41,14 @@ class Validator:
 
         return self.hash(hashable.encode())
 
-    def validate_hash(self, sender: str, recipient: str, reference: str, hash: str) -> bool:
+    def validate_hash(
+        self, sender: str, recipient: str, reference: str, hash: str
+    ) -> bool:
         return self.make_hash(sender, recipient, reference) == hash
 
     def validate_token(self, sender: str, token: str, references: list[str]) -> bool:
         try:
-            (recipient, reference, hash) = token.strip().split(":")
+            recipient, reference, hash = token.strip().split(":")
         except ValueError:
             return False
 

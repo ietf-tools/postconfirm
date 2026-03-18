@@ -1,10 +1,8 @@
 from psycopg import Cursor
 
-
 from .handler_db import HandlerDb
 from .handler_db_static import HandlerDbStatic
 from .sender import Sender
-
 
 handlers = {"db": HandlerDb, "static": HandlerDbStatic, "_default": "db"}
 instances = {}

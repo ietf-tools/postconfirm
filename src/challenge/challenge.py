@@ -3,7 +3,6 @@ import re
 
 from .typing import Action
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -62,11 +61,11 @@ class Challenge:
             action = handler.get_action(self.email)
 
             if not action:
-                for (pattern, pattern_action) in handler.get_patterns():
-                    logger.debug("Handling pattern %(pattern)s which would result in %(pattern_action)s", {
-                        "pattern": pattern,
-                        "pattern_action": pattern_action
-                    })
+                for pattern, pattern_action in handler.get_patterns():
+                    logger.debug(
+                        "Handling pattern %(pattern)s which would result in %(pattern_action)s",
+                        {"pattern": pattern, "pattern_action": pattern_action},
+                    )
                     if re.fullmatch(pattern, self.email, re.IGNORECASE) is not None:
                         action = pattern_action
                         break

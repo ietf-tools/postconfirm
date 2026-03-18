@@ -24,7 +24,7 @@ class HandlerQuery:
         """
         Splits the email address into a local part and a domain.
         """
-        return email.split('@', maxsplit=1)
+        return email.split("@", maxsplit=1)
 
     def get_action(self, email: str) -> Optional[Action]:
         """
@@ -32,20 +32,25 @@ class HandlerQuery:
         """
 
         if "action_query" not in self.handler_config:
-            logger.debug("Skipping non-existent action query for %(name)s", {"name": self._get_name()})
+            logger.debug(
+                "Skipping non-existent action query for %(name)s",
+                {"name": self._get_name()},
+            )
             return None
 
-        (local_part, domain) = self._split_email(email)
+        local_part, domain = self._split_email(email)
 
         try:
-            with get_db_pool(self._get_db_config(), self._get_name()).connection() as connection:
+            with get_db_pool(
+                self._get_db_config(), self._get_name()
+            ).connection() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         self.handler_config["action_query"],
                         {
                             "local_part": local_part,
                             "domain": domain,
-                        }
+                        },
                     )
 
                     result = cursor.fetchone()
@@ -54,12 +59,15 @@ class HandlerQuery:
                         return result[0]
 
         except Exception as e:
-            logger.error("Failed to execute action query for %(name)s with local part %(local_part)s and domain %(domain)s: %(reason)s", {
-                "name": self._get_name(),
-                "local_part": local_part,
-                "domain": domain,
-                "reason": str(e)
-            })
+            logger.error(
+                "Failed to execute action query for %(name)s with local part %(local_part)s and domain %(domain)s: %(reason)s",
+                {
+                    "name": self._get_name(),
+                    "local_part": local_part,
+                    "domain": domain,
+                    "reason": str(e),
+                },
+            )
 
         return None
 
@@ -69,11 +77,16 @@ class HandlerQuery:
         """
 
         if "pattern_query" not in self.handler_config:
-            logger.debug("Skipping non-existent pattern query for %(name)s", {"name": self._get_name()})
+            logger.debug(
+                "Skipping non-existent pattern query for %(name)s",
+                {"name": self._get_name()},
+            )
             return []
 
         try:
-            with get_db_pool(self._get_db_config(), self._get_name()).connection() as connection:
+            with get_db_pool(
+                self._get_db_config(), self._get_name()
+            ).connection() as connection:
                 with connection.cursor() as cursor:
                     cursor.execute(
                         self.handler_config["pattern_query"],
@@ -86,7 +99,7 @@ class HandlerQuery:
                     return results
 
         except Exception as e:
-            logger.error("Failed to execute pattern query for %(name)s: %(reason)s", {
-                "name": self._get_name(),
-                "reason": str(e)
-            })
+            logger.error(
+                "Failed to execute pattern query for %(name)s: %(reason)s",
+                {"name": self._get_name(), "reason": str(e)},
+            )
