@@ -254,7 +254,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     (mail_subject, mail_headers) = await extract_headers(session)
 
-    cleaned_subject=mail_subject.replace("\n","")
+    cleaned_subject = mail_subject.replace("\n", "").replace("\t", " ")
 
     is_challenge_response = subject_is_challenge_response(cleaned_subject)
 
