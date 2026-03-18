@@ -1,5 +1,3 @@
 from .processor import handle
 
-__all__ = [
-    "handle"
-]
+__all__ = ["handle"]

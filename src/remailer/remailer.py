@@ -59,7 +59,7 @@ class Remailer:
                 hostname=self.host,
                 port=self.port,
                 local_hostname=self.helo_host,
-                validate_certs=self.validate_certs
+                validate_certs=self.validate_certs,
             ) as smtp:
                 if self.username:
                     await smtp.login(self.username, self.password)

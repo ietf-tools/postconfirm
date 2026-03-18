@@ -27,9 +27,7 @@ class TestChallengeExactMatch:
 
 class TestChallengePatternMatch:
     def test_pattern_match_challenge(self):
-        handler = MockChallengeHandler(
-            patterns=[(r".*@example\.com", "challenge")]
-        )
+        handler = MockChallengeHandler(patterns=[(r".*@example\.com", "challenge")])
         challenge = Challenge("user@example.com", [handler])
         assert challenge.get_action() == "challenge"
 

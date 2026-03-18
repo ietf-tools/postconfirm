@@ -1,12 +1,11 @@
 import logging
-from typing import Optional, Iterable
+from typing import Iterable, Optional
 
 from config import Config
 
 from src.db import get_db_pool
 
 from .typing import Action
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class HandlerInternal:
                         FROM challenges
                         WHERE challenge=%(challenge)s AND challenge_type='E'
                     """,
-                    {"challenge": email}
+                    {"challenge": email},
                 )
 
                 result = cursor.fetchone()
@@ -44,14 +43,12 @@ class HandlerInternal:
         """
         with get_db_pool(self.app_config["db"], "db").connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(
-                    """
+                cursor.execute("""
                     SELECT
                         challenge, action_to_take
                         FROM challenges
                         WHERE challenge_type='P'
-                    """
-                )
+                    """)
 
                 results = cursor.fetchall()
 

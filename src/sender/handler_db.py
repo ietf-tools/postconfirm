@@ -4,10 +4,10 @@ from typing import Iterable, Optional, Tuple
 
 from config import Config
 
-from .typing import Action
-
 from src import services
 from src.db import get_db_pool
+
+from .typing import Action
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class HandlerDb:
                         FROM senders
                         WHERE sender=%(sender)s AND type='E'
                     """,
-                    {"sender": sender}
+                    {"sender": sender},
                 )
                 result = cursor.fetchone()
 
@@ -48,7 +48,7 @@ class HandlerDb:
                         FROM senders_static
                         WHERE sender=%(sender)s AND type='E'
                     """,
-                    {"sender": sender}
+                    {"sender": sender},
                 )
                 static_result = cursor.fetchone()
 
@@ -95,8 +95,7 @@ class HandlerDb:
                 # Patterns can be much simpler than Emails because a pattern
                 # should never actually have references. This means there is no
                 # need to merge them.
-                cursor.execute(
-                    """
+                cursor.execute("""
                     SELECT
                         sender, action, ref
                         FROM senders
@@ -106,8 +105,7 @@ class HandlerDb:
                         sender, action, ref
                         FROM senders_static
                         WHERE type='P'
-                    """
-                )
+                    """)
 
                 for row in cursor:
                     yield row
@@ -117,7 +115,7 @@ class HandlerDb:
             with connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT 1 FROM never_allow WHERE email = %(sender)s",
-                    {"sender": sender}
+                    {"sender": sender},
                 )
                 return cursor.fetchone() is not None
 
@@ -139,7 +137,7 @@ class HandlerDb:
                             ON CONFLICT (sender)
                                 DO UPDATE SET action=%(action)s, updated=now()
                         """,
-                        {"sender": sender, "action": action, "ref": parsed_ref}
+                        {"sender": sender, "action": action, "ref": parsed_ref},
                     )
                     connection.commit()
                     return True
@@ -164,7 +162,11 @@ class HandlerDb:
                             VALUES
                                 (%(sender)s, %(recipients)s, %(message)s)
                         """,
-                        {"sender": sender, "recipients": json.dumps(recipients), "message": msg}
+                        {
+                            "sender": sender,
+                            "recipients": json.dumps(recipients),
+                            "message": msg,
+                        },
                     )
                     connection.commit()
                     return True
@@ -189,10 +191,10 @@ class HandlerDb:
                             FROM stash
                             WHERE sender=%(sender)s
                         """,
-                        {"sender": sender}
+                        {"sender": sender},
                     )
 
-                    for (row_id, recipients, message) in cursor:
+                    for row_id, recipients, message in cursor:
                         yield (json.loads(recipients), message)
 
                         # Use a different cursor to avoid clobbering the in-progress loop
@@ -201,7 +203,7 @@ class HandlerDb:
                             DELETE FROM stash
                                 WHERE id=%(row_id)s
                             """,
-                            {"row_id": row_id}
+                            {"row_id": row_id},
                         )
                         connection.commit()
 
@@ -212,10 +214,10 @@ class HandlerDb:
                             FROM stash_static
                             WHERE sender=%(sender)s
                         """,
-                        {"sender": sender}
+                        {"sender": sender},
                     )
 
-                    for (row_id, recipients, message) in cursor:
+                    for row_id, recipients, message in cursor:
                         yield (json.loads(recipients), message)
 
                         # Use a different cursor to avoid clobbering the in-progress loop
@@ -224,7 +226,7 @@ class HandlerDb:
                             DELETE FROM stash_static
                                 WHERE id=%(row_id)s
                             """,
-                            {"row_id": row_id}
+                            {"row_id": row_id},
                         )
                         connection.commit()
 
