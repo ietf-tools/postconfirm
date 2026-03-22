@@ -2,7 +2,7 @@ import logging
 import random
 import re
 import string
-from email.header import decode_header
+from email.header import decode_header, make_header
 from typing import Optional, Union
 
 import chevron
@@ -156,8 +156,8 @@ async def extract_headers(session: Session) -> tuple[Optional[str], list]:
                 mail_subject = value.lstrip()
                 if mail_subject:
                     try:
-                        fixed_subject = bytes(decode_header(mail_subject)[0][0]).decode(decode_header(mail_subject)[0][1])
-                    except:
+                        fixed_subject = str(make_header(decode_header(mail_subject)))
+                    except (ValueError, UnicodeDecodeError):
                         fixed_subject = mail_subject
 
             mail_headers.append((header.name, value))
@@ -254,7 +254,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     (mail_subject, mail_headers) = await extract_headers(session)
 
-    cleaned_subject=mail_subject.replace("\n","")
+    cleaned_subject = mail_subject.replace("\n", "").replace("\t", " ")
 
     is_challenge_response = subject_is_challenge_response(cleaned_subject)
 
