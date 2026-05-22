@@ -15,7 +15,6 @@ from src.sender import Sender, get_sender
 
 logger = logging.getLogger(__name__)
 
-
 LINE_SEP = "\n"
 
 
@@ -30,7 +29,7 @@ def recipient_requires_challenge(recipients: list) -> Union[False, list]:
     challengeable = filter(lambda challenge: challenge.get_action() == "challenge", challenges)
     to_challenge = list([challenge.get_email() for challenge in challengeable])
 
-    logger.debug("challenges: %(challenges)s", {"challenges": to_challenge})
+    logger.debug(f"challenges {challenges}")
 
     if len(to_challenge):
         return to_challenge
@@ -182,6 +181,29 @@ async def extract_body(session: Session) -> list:
 
     return mail_body
 
+async def extract_macros(session: Session) -> list:
+    """
+    Extracts the macros from the milter session.
+    {
+      'j': 'mx-slush.slush.ca',
+      '{daemon_name}': 'ORIGINATING',
+      '{daemon_addr}': '10.0.0.212',
+      'v': 'Postfix 3.10.8',
+      '_': '10-0-8-230.mailman.listserver.svc.cluster.local [10.0.8.230]',
+      '{tls_version}': 'TLSv1.3',
+      '{cipher}': 'TLS_AES_256_GCM_SHA384',
+      '{cipher_bits}': '256',
+      '{auth_type}': 'PLAIN',
+      '{auth_authen}': 'mailman@slush.ca',
+      '{mail_addr}': 'tootlist-bounces+dene=foster.kiwi.nz@lists.sys.slush.ca',
+      '{mail_host}': '[mailman.listserver.svc.cluster.local]:8024',
+      '{mail_mailer}': 'lmtp',
+      '{rcpt_addr}': 'dene@foster.kiwi.nz',
+      '{rcpt_host}': '205.233.128.5:25',
+      '{rcpt_mailer}': 'smtp',
+      'i': '6D6892E'}
+    """
+    return session.macros
 
 def extract_reference(mail_headers: list[dict]) -> str:
     message_id = next((header[1] for header in mail_headers if header[0].lower() == "message-id"), None)
@@ -254,6 +276,8 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
     (mail_subject, mail_headers) = await extract_headers(session)
 
+    macros = await extract_macros(session)
+
     cleaned_subject = mail_subject.replace("\n", "").replace("\t", " ")
 
     is_challenge_response = subject_is_challenge_response(cleaned_subject)
@@ -264,9 +288,11 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     #
     if mail_from == remail_sender:
         logger.debug("Message appears to be outbound challenge, accept")
+        logger.info(f"{macros['i']} outbound accept {sender} - message is outbound challege, accept")
         return Accept()
     if challenge_recipients and should_drop:
         logger.debug("Message flagged for challenge but also matched drop conditions")
+        logger.info(f"{macros['i']} outbound drop {sender} - message matches droplist")
         return Discard()
 
     elif challenge_recipients and not is_challenge_response:
@@ -278,18 +304,22 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
                 "Message flagged for challenge and sender -- %(sender)s -- marked for acceptance",
                 {"sender": mail_from}
             )
+            logger.info(f"{macros['i']} inbound accept {mail_from} - message is flagged, sender is marked for acceptance")
             return Accept()
         elif action == "reject":
             logger.debug("Message flagged for challenge and sender marked for rejecting")
+            logger.info(f"{macros['i']} inbound reject {mail_from} - message is flagged, sender is marked for rejecting")
             return Reject()
         elif action == "discard":
             logger.debug("Message flagged for challenge and sender marked for discarding")
+            logger.info(f"{macros['i']} inbound discard {mail_from} - message is flagged, sender is marked for discarding")
             return Discard()
 
         if sender.is_never_allowed():
             logger.warning(
                 "Sender %(sender)s in never_allow, discarding without challenge",
                 {"sender": mail_from})
+            logger.info(f"{macros['i']} inbound never_allow {mail_from} - sender is in never_allow list")
             return Discard()
 
         # The remaining options are "unknown" or "confirm". In both cases
@@ -309,6 +339,7 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         if action in actions_to_challenge:
             logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
+            logger.info(f"{macros['i']} inbound challenge {mail_from} - sender requires challenge")
             await send_challenge(sender, cleaned_subject, challenge_recipients, challenge_reference)
 
         return Discard()
@@ -323,14 +354,17 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             if not services["validator"].validate_token(sender.email, token, sender.get_refs()):
                 # Reject the message
                 logger.debug("Message is a response but is not valid")
+                logger.info(f"{macros['i']} inbound invalid_response {mail_from} - message is response, but invalid")
                 return Reject()
 
             if sender.is_never_allowed():
                 logger.warning("Sender %(sender)s in never_allow, discarding challenge response",
                                {"sender": mail_from})
+                logger.info(f"{macros['i']} inbound never_allow {mail_from} - sender is in never_allow list")
                 return Discard()
 
             logger.debug("Message is a valid confirmation response")
+            logger.info(f"{macros['i']} inbound confirm {mail_from} - response is valid, confirming user")
 
             # Mark the sender as valid
             sender.clear_references()
@@ -341,10 +375,11 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
         else:
             logger.debug("Message is a response but we are not confirming the sender")
+            logger.info(f"{macros['i']} inbound response {mail_from} - response is valid, but not confirming user")
 
         # Always discard the message at this stage
         return Discard()
 
     # Anything else is just accepted
+    logger.info(f"{macros['i']} either allow - no challenge required")
     return Accept()
-

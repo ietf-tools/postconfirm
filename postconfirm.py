@@ -1,5 +1,7 @@
 import argparse
 import logging
+from logging.handlers import TimedRotatingFileHandler
+
 
 from anyio import create_tcp_listener, run
 import config
@@ -24,8 +26,38 @@ async def main():
     # Load the configuration
     app_config = config.Config(args.config_file)
 
-    # Set up the root logger
-    logging.basicConfig(level=app_config.get('log.level', logging.WARNING))
+    log_line_format = "{asctime} postconfirm/postconfirm[{process}]: {message} [{filename}:{lineno}]"
+    log_date_format = "%b %d %H:%M:%S"
+    log_rotate_period = "D"
+    log_rotate_interval = 1
+    log_rotate_keep = 5
+    log_filename = app_config.get('log.filename', '/var/log/postconfirm/postconfirm.log')
+    log_level = app_config.get('log.level', logging.INFO)
+
+    logging.basicConfig(
+        level=log_level,
+        style="{",
+        datefmt=log_date_format,
+        format=log_line_format
+    )
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(log_level)
+    file_handler = TimedRotatingFileHandler(
+        log_filename, when=log_rotate_period, interval=log_rotate_interval,
+        backupCount=log_rotate_keep
+    )
+
+    file_formatter = logging.Formatter(
+        style="{",
+        datefmt=log_date_format,
+        fmt=log_line_format
+    )
+
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+
+    logger = logging.LoggerAdapter(logger)
 
     # Set up a services registry
     services["app_config"] = app_config
@@ -41,3 +73,4 @@ async def main():
 
 if __name__ == "__main__":
     run(main)
+
