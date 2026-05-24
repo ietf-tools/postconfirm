@@ -41,7 +41,8 @@ async def main():
         format=log_line_format
     )
 
-    logger = logging.getLogger(__name__)
+    logging.getLogger("kilter.service").disabled = True
+    logger = logging.getLogger()
     logger.setLevel(log_level)
     file_handler = TimedRotatingFileHandler(
         log_filename, when=log_rotate_period, interval=log_rotate_interval,
@@ -57,7 +58,7 @@ async def main():
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
 
-    logger = logging.LoggerAdapter(logger)
+    #logger = logging.LoggerAdapter(logger)
 
     # Set up a services registry
     services["app_config"] = app_config
@@ -73,4 +74,3 @@ async def main():
 
 if __name__ == "__main__":
     run(main)
-

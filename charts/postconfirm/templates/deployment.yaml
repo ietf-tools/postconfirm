@@ -103,6 +103,8 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: logs
+              mountPath: /var/log
             - name: postconfirm-template
               mountPath: /app/etc/confirm.email.mustache
               subPath: confirm.email.mustache
@@ -113,7 +115,60 @@ spec:
           {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      initContainers:
+      - name: log-path-fix
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        restartPolicy: Never
+        args:
+          - install
+          - -d
+          - -o
+          - "1000"
+          - -g
+          - "1000"
+          - /var/log/postconfirm
+        volumeMounts:
+          - name: logs
+            mountPath: /var/log
+      {{- if .Values.filebeat.enabled }}
+      - name: filebeat
+        image: elastic/filebeat:{{ .Values.filebeat.filebeatVersion }}
+        imagePullPolicy: IfNotPresent
+        restartPolicy: Always
+        args:
+          - -c
+          - /etc/filebeat.yml
+          - -e
+        volumeMounts:
+          - name: logs
+            mountPath: /var/log
+          - name: filebeat-config
+            mountPath: /etc/filebeat.yml
+            subPath: filebeat.yml
+            readOnly: true
+          {{- if .Values.filebeat.tlsCA }}
+          - name: filebeat-ca
+            mountPath: /etc/filebeat/ca.pem
+            subPath: ca.pem
+            readOnly: true
+          {{- end }}
+      {{- end }}
       volumes:
+        - name: logs
+          emptyDir: {}
+        {{- if .Values.filebeat.enabled }}
+        - name: filebeat-config
+          configMap:
+            name: {{ include "postconfirm.fullname" . }}-filebeat-config
+            defaultMode: 0444
+        {{- if .Values.filebeat.tlsCA }}
+        - name: filebeat-ca
+          configMap:
+            name: {{ include "postconfirm.fullname" . }}-filebeat-ca
+            defaultMode: 0444
+        {{- end }}
+        {{- end }}
         - name: postconfirm-template
           configMap:
             name: postconfirm-template

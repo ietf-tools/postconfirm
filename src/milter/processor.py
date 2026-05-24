@@ -287,12 +287,10 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     # Now we can determine the course of action
     #
     if mail_from == remail_sender:
-        logger.debug("Message appears to be outbound challenge, accept")
-        logger.info(f"{macros['i']} outbound accept {sender} - message is outbound challege, accept")
+        logger.info(f"{macros['i']} outbound accept {mail_from} - message is outbound challege, accept")
         return Accept()
     if challenge_recipients and should_drop:
-        logger.debug("Message flagged for challenge but also matched drop conditions")
-        logger.info(f"{macros['i']} outbound drop {sender} - message matches droplist")
+        logger.info(f"{macros['i']} outbound drop {mail_from} - message matches droplist")
         return Discard()
 
     elif challenge_recipients and not is_challenge_response:
@@ -300,26 +298,16 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         action = sender.get_action()
 
         if action == "accept":
-            logger.debug(
-                "Message flagged for challenge and sender -- %(sender)s -- marked for acceptance",
-                {"sender": mail_from}
-            )
             logger.info(f"{macros['i']} inbound accept {mail_from} - message is flagged, sender is marked for acceptance")
             return Accept()
         elif action == "reject":
-            logger.debug("Message flagged for challenge and sender marked for rejecting")
             logger.info(f"{macros['i']} inbound reject {mail_from} - message is flagged, sender is marked for rejecting")
             return Reject()
         elif action == "discard":
-            logger.debug("Message flagged for challenge and sender marked for discarding")
             logger.info(f"{macros['i']} inbound discard {mail_from} - message is flagged, sender is marked for discarding")
             return Discard()
 
         if sender.is_never_allowed():
-            logger.warning(
-                "Sender %(sender)s in never_allow, discarding without challenge",
-                {"sender": mail_from})
-            logger.info(f"{macros['i']} inbound never_allow {mail_from} - sender is in never_allow list")
             return Discard()
 
         # The remaining options are "unknown" or "confirm". In both cases
@@ -338,7 +326,6 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             actions_to_challenge.append("confirm")
 
         if action in actions_to_challenge:
-            logger.debug("Message flagged for challenge and sender -- %(sender)s -- requires challenge", {"sender": mail_from})
             logger.info(f"{macros['i']} inbound challenge {mail_from} - sender requires challenge")
             await send_challenge(sender, cleaned_subject, challenge_recipients, challenge_reference)
 
@@ -353,17 +340,13 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
 
             if not services["validator"].validate_token(sender.email, token, sender.get_refs()):
                 # Reject the message
-                logger.debug("Message is a response but is not valid")
                 logger.info(f"{macros['i']} inbound invalid_response {mail_from} - message is response, but invalid")
                 return Reject()
 
             if sender.is_never_allowed():
-                logger.warning("Sender %(sender)s in never_allow, discarding challenge response",
-                               {"sender": mail_from})
                 logger.info(f"{macros['i']} inbound never_allow {mail_from} - sender is in never_allow list")
                 return Discard()
 
-            logger.debug("Message is a valid confirmation response")
             logger.info(f"{macros['i']} inbound confirm {mail_from} - response is valid, confirming user")
 
             # Mark the sender as valid
@@ -374,12 +357,12 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             await release_messages(sender)
 
         else:
-            logger.debug("Message is a response but we are not confirming the sender")
             logger.info(f"{macros['i']} inbound response {mail_from} - response is valid, but not confirming user")
 
         # Always discard the message at this stage
         return Discard()
 
     # Anything else is just accepted
-    logger.info(f"{macros['i']} either allow - no challenge required")
+    logger.info(f"{macros['i']} in-or-out allow from:{mail_from} - no challenge required")
     return Accept()
+
