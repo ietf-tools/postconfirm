@@ -308,6 +308,9 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
             return Discard()
 
         if sender.is_never_allowed():
+            logger.info(
+                f"{macros['i']} inbound never_allow {mail_from} - message is flagged, sender is never allowed"
+            )
             return Discard()
 
         # The remaining options are "unknown" or "confirm". In both cases
