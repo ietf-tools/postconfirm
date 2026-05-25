@@ -73,6 +73,8 @@ spec:
               value: {{ .Values.postconfirm.remail_sender }}
             - name: MAIL_ADMIN
               value: {{ .Values.postconfirm.mail_admin }}
+            - name: LOG_LEVEL
+              value: {{ .Values.postconfirm.log_level }}
             {{- with .Values.postconfirm.smtp_auth }}
             - name: SMTP_USERNAME
               valueFrom:
