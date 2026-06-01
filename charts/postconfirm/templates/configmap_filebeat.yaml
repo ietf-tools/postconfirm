@@ -1,0 +1,46 @@
+{{- if .Values.filebeat.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postconfirm.fullname" . }}-filebeat-config
+data:
+  filebeat.yml: |
+    filebeat.inputs:
+    - type: filestream
+      tags:
+        {{- with .Values.filebeat.logstashTags }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      id: postconfirm
+      enabled: true
+      paths:
+        {{- with .Values.filebeat.filePaths }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      processors:
+      - add_fields:
+          target: ''
+          fields:
+            hostname: "{{ .Values.filebeat.loggingHostname }}"
+    output:
+      logstash:
+        enabled: true
+        hosts: [ "{{ .Values.filebeat.logstashHost }}:{{ .Values.filebeat.logstashPort }}" ]
+        {{- if .Values.filebeat.tlsCA }}
+        ssl.enabled: true
+        ssl.verification_mode: certificate  # Verifies CA but not hostname
+        ssl.certificate_authorities: ["/etc/filebeat/ca.pem"]
+        ssl.client_authentication: "none"
+        {{- end }}
+
+{{- if .Values.filebeat.tlsCA }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postconfirm.fullname" . }}-filebeat-ca
+data:
+  ca.pem: |
+    {{- .Values.filebeat.tlsCA | nindent 4 }}
+{{- end }}
+{{- end }}
