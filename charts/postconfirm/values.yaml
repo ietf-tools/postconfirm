@@ -87,6 +87,10 @@ volumes: []
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts: []
 
+dnsPolicy: ""
+
+dnsConfig: {}
+
 nodeSelector: {}
 
 tolerations: []
