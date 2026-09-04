@@ -306,6 +306,8 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         elif action == "discard":
             logger.info(f"{macros['i']} inbound discard {mail_from} - message is flagged, sender is marked for discarding")
             return Discard()
+        elif action == "confirm":
+            logger.info(f"{macros['i']} inbound challenge {mail_from} - message is flagged, sender already has challenge inflight")
 
         if sender.is_never_allowed():
             logger.info(
@@ -325,8 +327,6 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         sender.stash_message(mail_as_text, mail_recipients, challenge_reference)
 
         actions_to_challenge = ["unknown", "expired"]
-        if services["app_config"].get("resend_confirmation", True):
-            actions_to_challenge.append("confirm")
 
         if action in actions_to_challenge:
             logger.info(f"{macros['i']} inbound challenge {mail_from} - sender requires challenge")
