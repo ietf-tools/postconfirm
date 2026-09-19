@@ -37,7 +37,7 @@ class HandlerDb:
                         FROM senders
                         WHERE sender=%(sender)s AND type='E'
                     """,
-                    {"sender": sender}
+                    {"sender": sender.lower()}
                 )
                 result = cursor.fetchone()
 
@@ -48,7 +48,7 @@ class HandlerDb:
                         FROM senders_static
                         WHERE sender=%(sender)s AND type='E'
                     """,
-                    {"sender": sender}
+                    {"sender": sender.lower()}
                 )
                 static_result = cursor.fetchone()
 
@@ -120,7 +120,7 @@ class HandlerDb:
             with connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT 1 FROM never_allow WHERE email = %(sender)s",
-                    {"sender": sender}
+                    {"sender": sender.lower()}
                 )
                 return cursor.fetchone() is not None
 
@@ -192,7 +192,7 @@ class HandlerDb:
                             FROM stash
                             WHERE sender=%(sender)s
                         """,
-                        {"sender": sender}
+                        {"sender": sender.lower()}
                     )
 
                     for (row_id, recipients, message) in cursor:
@@ -215,7 +215,7 @@ class HandlerDb:
                             FROM stash_static
                             WHERE sender=%(sender)s
                         """,
-                        {"sender": sender}
+                        {"sender": sender.lower()}
                     )
 
                     for (row_id, recipients, message) in cursor:

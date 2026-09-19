@@ -39,7 +39,7 @@ class HandlerDbStatic:
                     FROM senders_static
                     WHERE sender=%(sender)s AND type='E'
                 """,
-                {"sender": sender}
+                {"sender": sender.lower()}
             )
             result = cursor.fetchone()
 
@@ -145,7 +145,7 @@ class HandlerDbStatic:
                         FROM stash_static
                         WHERE sender=%(sender)s
                     """,
-                    {"sender": sender}
+                    {"sender": sender.lower()}
                 )
 
                 for (row_id, recipients, message) in cursor:
