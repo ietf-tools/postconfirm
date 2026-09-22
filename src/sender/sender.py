@@ -30,12 +30,12 @@ class Sender:
     """
 
     def __init__(self, email: str, handler: any) -> None:
+        self.email = email
         # strip BATV
         if "=" in self.email and re.search("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=[^=]+@", self.email):
             logger.debug("BATV stripped from %(email)s", {"email": self.email})
             self.email = re.sub("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=", "", self.email)
 
-        self.email = email
         self.references = None
         self.action = None
 
