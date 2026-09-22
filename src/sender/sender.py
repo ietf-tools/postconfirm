@@ -40,6 +40,12 @@ class Sender:
         """
         Return the sender email address.
         """
+
+        # strip BATV
+        if "=" in self.email and re.search("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=[^=]+@", self.email):
+            logger.debug("BATV stripped from %(email)s", {"email": self.email})
+            self.email = re.sub("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=", "", self.email)
+
         return self.email
 
     def get_action(self) -> Action:
