@@ -294,8 +294,6 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
         # Process the sender
         action = sender.get_action()
 
-        if should_drop:
-             logger.info(f"{macros['i']} inbound accept {mail_from} - message matches droplist headers but allowing")
         if action == "accept":
             logger.info(f"{macros['i']} inbound accept {mail_from} - message is flagged, sender is marked for acceptance")
             return Accept()
