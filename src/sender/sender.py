@@ -63,7 +63,7 @@ class Sender:
 
         logger.debug("Action record for %(email)s: %(action)s", {"email": self.email, "action": action_data})
 
-        if not action_data:
+        if not action_data or action_data[0] == "unknown":
             patterns = self.handler.get_patterns()
 
             for pattern, action, ref in patterns:
