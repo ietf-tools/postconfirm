@@ -118,7 +118,8 @@ def add_pattern_sender_entries(cursor, list_name: str, action: str, source_name:
 
 def add_sender_entry(cursor, sender: str, action: str, source_name: str, sender_type: str = "E", reference: str = None) -> None:
     values = {
-        "sender": sender,
+        # Patterns are matched case-insensitively and must not be lower-cased
+        "sender": sender.lower() if sender_type == "E" else sender,
         "action": action,
         "source_name": source_name,
         "type": sender_type,

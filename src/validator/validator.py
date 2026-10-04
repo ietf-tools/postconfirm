@@ -49,7 +49,7 @@ class Validator:
         except ValueError:
             return False
 
-        for reference_entry in references:
+        for reference_entry in references or []:
             if reference_entry == reference:
                 return self.validate_hash(sender, recipient, reference_entry, hash)
 

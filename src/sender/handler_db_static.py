@@ -121,7 +121,7 @@ class HandlerDbStatic:
                         VALUES
                             (%(sender)s, %(recipients)s, %(message)s)
                     """,
-                    {"sender": sender, "recipients": json.dumps(recipients), "message": msg}
+                    {"sender": sender.lower(), "recipients": json.dumps(recipients), "message": msg}
                 )
                 cursor.connection.commit()
                 return True
