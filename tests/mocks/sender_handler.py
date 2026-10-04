@@ -44,5 +44,6 @@ class MockHandler:
         else:
             emails = []
 
-        for index, data in enumerate(emails):
-            yield (index, *data)
+        # Same shape as HandlerDb: (recipients, message)
+        for msg, recipients in emails:
+            yield (recipients, msg)

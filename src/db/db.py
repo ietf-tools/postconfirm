@@ -35,3 +35,14 @@ def get_db_pool(config_fragment: dict, cache_key: Optional[str] = None) -> Conne
         return pool
     else:
         return pool_cache[cache_key]
+
+
+def close_db_pools() -> None:
+    """
+    Close every cached pool. Left open, each pool worker thread delays
+    interpreter exit by several seconds.
+    """
+    for pool in pool_cache.values():
+        pool.close()
+
+    pool_cache.clear()

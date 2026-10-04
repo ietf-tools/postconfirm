@@ -1,6 +1,7 @@
 import tempfile
 from unittest.mock import MagicMock, patch
 
+import anyio
 import pytest
 
 from src import services
@@ -14,10 +15,14 @@ from src.milter.processor import (
     message_should_be_dropped,
     recipient_requires_challenge,
     reform_email_text,
+    release_messages,
+    send_challenge,
     subject_is_challenge_response,
 )
+from src.sender import Sender
 from src.validator.validator import Validator
 from tests.mocks.challenge_handler import MockChallengeHandler
+from tests.mocks.sender_handler import MockHandler, defined_sender
 
 
 class TestCleanupMail:
@@ -226,3 +231,66 @@ class TestGetChallengeSubject:
         result = get_challenge_subject("sender@a.com", ["rcpt@b.com"], "ref1")
         token = result.strip().removeprefix("Confirm: ")
         assert validator.validate_token("sender@a.com", token, ["ref1"]) is True
+
+
+class BlockingRemailer:
+    """
+    A remailer whose sends wait until `proceed` is set, so a test can cancel
+    the caller while a send is in flight.
+    """
+
+    def __init__(self):
+        self.started = anyio.Event()
+        self.proceed = anyio.Event()
+        self.sent = []
+
+    async def sendmail(self, recipients, message, sender=None):
+        self.started.set()
+        await self.proceed.wait()
+        self.sent.append(recipients)
+        return True
+
+
+async def _cancel_while_sending(remailer, func, *args):
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(func, *args)
+        await remailer.started.wait()
+        tg.cancel_scope.cancel()
+        remailer.proceed.set()
+
+
+class TestCriticalSectionsSurviveCancellation:
+    """
+    A shutdown that cancels a milter session must not split these sequences:
+    the sender's state has already been changed before the mail is sent.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_services(self, tmp_path):
+        template = tmp_path / "confirm.email.mustache"
+        template.write_text("Please confirm {{ sender_address }}")
+        self.remailer = BlockingRemailer()
+        services["app_config"] = {"mail_template": str(template), "admin_address": "admin@example.com"}
+        services["validator"] = _make_test_validator()
+        services["remailer"] = self.remailer
+        yield
+        for key in ("app_config", "validator", "remailer"):
+            del services[key]
+
+    @pytest.mark.asyncio
+    async def test_challenge_is_still_sent(self):
+        sender = Sender("someone@example.org", MockHandler())
+
+        await _cancel_while_sending(
+            self.remailer, send_challenge, sender, "Hello", ["list@ietf.org"], "ref1"
+        )
+
+        assert self.remailer.sent == [["someone@example.org"]]
+
+    @pytest.mark.asyncio
+    async def test_stashed_messages_are_all_released(self):
+        sender = Sender(defined_sender, MockHandler())
+
+        await _cancel_while_sending(self.remailer, release_messages, sender)
+
+        assert self.remailer.sent == [["a@b.c", "d@e.f"], ["a@b.c", "d@e.f"]]
