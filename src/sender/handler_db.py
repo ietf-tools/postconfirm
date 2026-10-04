@@ -140,9 +140,9 @@ class HandlerDb:
                             VALUES
                                 (%(sender)s, %(action)s, %(ref)s, 'E', 'postconfirm')
                             ON CONFLICT (sender)
-                                DO UPDATE SET action=%(action)s, updated=now()
+                                DO UPDATE SET action=%(action)s, ref=%(ref)s, updated=now()
                         """,
-                        {"sender": sender, "action": action, "ref": parsed_ref}
+                        {"sender": sender.lower(), "action": action, "ref": parsed_ref}
                     )
                     connection.commit()
                     return True
@@ -167,7 +167,7 @@ class HandlerDb:
                             VALUES
                                 (%(sender)s, %(recipients)s, %(message)s)
                         """,
-                        {"sender": sender, "recipients": json.dumps(recipients), "message": msg}
+                        {"sender": sender.lower(), "recipients": json.dumps(recipients), "message": msg}
                     )
                     connection.commit()
                     return True

@@ -66,6 +66,11 @@ class TestValidatorToken:
         v = _make_validator()
         assert v.validate_token("sender@a.com", "no-colons-here", ["ref1"]) is False
 
+    def test_validate_token_without_references(self):
+        v = _make_validator()
+        token = v.get_token("sender@a.com", "rcpt@b.com", "ref1")
+        assert v.validate_token("sender@a.com", token, None) is False
+
 
 class TestValidatorMissingKeyFile:
     def test_missing_key_file(self):

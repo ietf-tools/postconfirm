@@ -30,7 +30,7 @@ class Sender:
     """
 
     def __init__(self, email: str, handler: any) -> None:
-        self.email = email
+        self.email = email.lower()
         # strip BATV
         if "=" in self.email and re.search("^[A-Za-z0-9-]+=[A-Za-z0-9-]+=[^=]+@", self.email):
             logger.debug("BATV stripped from %(email)s", {"email": self.email})

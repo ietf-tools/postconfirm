@@ -126,3 +126,21 @@ class TestSenderReferences:
         refs = sender.get_refs()
         assert sender.action is not None
         assert refs == "foo"
+
+
+class TestSenderAddressCase:
+    def test_email_is_lower_cased(self):
+        sender = Sender("John.Doe@Example.org", MockHandler())
+        assert sender.get_email() == "john.doe@example.org"
+
+    def test_challenge_state_survives_a_change_of_case(self):
+        handler = MockHandler()
+
+        first = Sender("John.Doe@Example.org", handler)
+        assert first.get_action() == "unknown"
+        first.stash_message("a message", ["list@ietf.org"], "ref1")
+
+        reply = Sender("john.doe@EXAMPLE.org", handler)
+        assert reply.get_action() == "confirm"
+        assert reply.get_refs() == ["ref1"]
+        assert len(list(reply.unstash_messages())) == 1
