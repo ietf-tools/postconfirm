@@ -6,6 +6,7 @@ from email.header import decode_header, make_header
 from typing import Optional, Union
 
 import chevron
+from anyio import CancelScope
 from kilter.protocol import Accept, Discard, Reject
 from kilter.service import Runner, Session
 
@@ -116,7 +117,10 @@ async def send_challenge(sender: Sender, subject: str, recipients: list[str], re
 
         challenge_message = reform_email_text(headers, [message_text])
 
-        await services["remailer"].sendmail([sender.email], challenge_message)
+        # The sender is already marked as "confirm", so a cancelled send
+        # would leave them with no challenge
+        with CancelScope(shield=True):
+            await services["remailer"].sendmail([sender.email], challenge_message)
 
 
 def get_challenge_token_from_subject(subject: str) -> str:
@@ -223,12 +227,15 @@ async def release_messages(sender: Sender) -> None:
     Releases the stashed messages relating to the sender.
     """
 
-    for (recipients, message) in sender.unstash_messages():
-        logging.debug("Releasing message from %(sender)s to %(recipients)s", {
-            "sender": sender.get_email(),
-            "recipients": ', '.join(recipients)
-        })
-        await services["remailer"].sendmail(recipients, message, sender.get_email())
+    # The sender is already marked as "accept", so anything left in the
+    # stash after a cancellation would never be released
+    with CancelScope(shield=True):
+        for (recipients, message) in sender.unstash_messages():
+            logging.debug("Releasing message from %(sender)s to %(recipients)s", {
+                "sender": sender.get_email(),
+                "recipients": ', '.join(recipients)
+            })
+            await services["remailer"].sendmail(recipients, message, sender.get_email())
 
 
 @Runner

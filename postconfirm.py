@@ -1,15 +1,17 @@
 import argparse
 import logging
+import signal
 from logging.handlers import TimedRotatingFileHandler
 
 
-from anyio import create_tcp_listener, run
+from anyio import create_task_group, create_tcp_listener, current_time, open_signal_receiver, run
 import config
 
 from src.milter import handle
 from src.remailer import Remailer
 from src.validator import Validator
 from src.challenge import init_handlers as init_challenge_handlers
+from src.db import close_db_pools
 
 from src import services
 
@@ -69,10 +71,34 @@ async def main():
 
     init_challenge_handlers(services)
 
-    # Start the listener
     listen_port = args.port or app_config.get("milter_port", 1999)
-    listener = await create_tcp_listener(local_port=listen_port)
-    await listener.serve(handle)
+    drain_seconds = float(app_config.get("shutdown.drain_seconds", 20))
+
+    # Handle signals before listening: as PID 1 in a container an unhandled
+    # SIGTERM is ignored, and the pod is killed at the end of its grace period.
+    with open_signal_receiver(signal.SIGTERM, signal.SIGINT) as signals:
+        listener = await create_tcp_listener(local_port=listen_port)
+
+        # Sessions run in their own task group so that they can outlive the
+        # accept loop and finish while we drain.
+        async with create_task_group() as sessions:
+            async with create_task_group() as acceptor:
+                acceptor.start_soon(listener.serve, handle, sessions)
+
+                async for signum in signals:
+                    logger.info("Received %(signal)s, draining sessions for up to %(drain)ss", {
+                        "signal": signum.name,
+                        "drain": drain_seconds,
+                    })
+                    break
+
+                acceptor.cancel_scope.cancel()
+
+            await listener.aclose()
+            sessions.cancel_scope.deadline = current_time() + drain_seconds
+
+    close_db_pools()
+    logger.info("Shutdown complete")
 
 if __name__ == "__main__":
     run(main)

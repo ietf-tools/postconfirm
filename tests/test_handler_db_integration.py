@@ -11,7 +11,7 @@ from pathlib import Path
 import psycopg
 import pytest
 
-from src.db import db as db_module
+from src.db import close_db_pools
 from src.sender import Sender
 from src.sender.handler_db import HandlerDb
 from src.sender.handler_db_static import HandlerDbStatic
@@ -54,9 +54,7 @@ def db_config():
 
     yield config
 
-    for pool in db_module.pool_cache.values():
-        pool.close()
-    db_module.pool_cache.clear()
+    close_db_pools()
 
 
 @pytest.fixture
