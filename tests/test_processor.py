@@ -1,8 +1,12 @@
+import logging
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import anyio
 import pytest
+from kilter.protocol import Accept, TemporaryFailure
+from kilter.service.session import Aborted
 
 from src import services
 from src.challenge.challenge import Challenge
@@ -12,6 +16,7 @@ from src.milter.processor import (
     form_header,
     get_challenge_subject,
     get_challenge_token_from_subject,
+    handle_message,
     message_should_be_dropped,
     recipient_requires_challenge,
     reform_email_text,
@@ -294,3 +299,53 @@ class TestCriticalSectionsSurviveCancellation:
         await _cancel_while_sending(self.remailer, release_messages, sender)
 
         assert self.remailer.sent == [["a@b.c", "d@e.f"], ["a@b.c", "d@e.f"]]
+
+
+class TestHandleMessageErrors:
+    """
+    kilter turns an exception from the filter into a temporary failure, so
+    without our own logging a crash is invisible.
+    """
+
+    @pytest.fixture
+    def session(self):
+        return SimpleNamespace(macros={"i": "4ABC123", "{mail_addr}": "someone@example.org"})
+
+    @pytest.mark.asyncio
+    async def test_exception_is_logged_with_queue_id_and_sender(self, session, caplog):
+        with patch("src.milter.processor.process_message", side_effect=RuntimeError("db down")):
+            await handle_message(session)
+
+        [record] = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert record.getMessage() == "4ABC123 inbound error someone@example.org - RuntimeError: db down"
+        assert record.exc_info is not None
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_temporary_failure(self, session):
+        with patch("src.milter.processor.process_message", side_effect=RuntimeError("db down")):
+            response = await handle_message(session)
+
+        assert isinstance(response, TemporaryFailure)
+
+    @pytest.mark.asyncio
+    async def test_exception_before_macros_still_logged(self, caplog):
+        with patch("src.milter.processor.process_message", side_effect=RuntimeError("db down")):
+            await handle_message(SimpleNamespace(macros={}))
+
+        [record] = [r for r in caplog.records if r.levelno == logging.ERROR]
+        assert record.getMessage() == "- inbound error - - RuntimeError: db down"
+
+    @pytest.mark.asyncio
+    async def test_response_passed_through(self, session):
+        with patch("src.milter.processor.process_message", return_value=Accept()):
+            response = await handle_message(session)
+
+        assert isinstance(response, Accept)
+
+    @pytest.mark.asyncio
+    async def test_abort_is_not_treated_as_error(self, session, caplog):
+        with patch("src.milter.processor.process_message", side_effect=Aborted()):
+            with pytest.raises(Aborted):
+                await handle_message(session)
+
+        assert not [r for r in caplog.records if r.levelno == logging.ERROR]
