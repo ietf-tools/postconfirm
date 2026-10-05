@@ -44,7 +44,8 @@ async def main():
         level=log_level, style="{", datefmt=log_date_format, format=log_line_format
     )
 
-    logging.getLogger("kilter.service").disabled = True
+    # kilter logs every connection at INFO; keep its warnings and errors
+    logging.getLogger("kilter.service").setLevel(logging.WARNING)
 
     logger = logging.getLogger()
     logger.setLevel(log_level)

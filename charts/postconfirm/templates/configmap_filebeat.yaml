@@ -17,6 +17,14 @@ data:
         {{- with .Values.filebeat.filePaths }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+      # Lines that don't start with a timestamp (e.g. tracebacks) belong
+      # to the previous entry
+      parsers:
+      - multiline:
+          type: pattern
+          pattern: '^[A-Z][a-z]{2} \d{2} \d{2}:\d{2}:\d{2} '
+          negate: true
+          match: after
       processors:
       - add_fields:
           target: ''

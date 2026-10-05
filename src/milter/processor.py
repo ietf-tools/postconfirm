@@ -7,7 +7,7 @@ from typing import Optional, Union
 
 import chevron
 from anyio import CancelScope
-from kilter.protocol import Accept, Discard, Reject
+from kilter.protocol import Accept, Discard, Reject, TemporaryFailure
 from kilter.service import Runner, Session
 
 from src import services
@@ -238,8 +238,7 @@ async def release_messages(sender: Sender) -> None:
             await services["remailer"].sendmail(recipients, message, sender.get_email())
 
 
-@Runner
-async def handle(session: Session) -> Union[Accept, Reject, Discard]:
+async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
     """
     The milter processor for postconfirm.
 
@@ -373,3 +372,19 @@ async def handle(session: Session) -> Union[Accept, Reject, Discard]:
     logger.info(f"{macros['i']} in-or-out allow from:{mail_from} - no challenge required")
     return Accept()
 
+
+async def handle_message(session: Session) -> Union[Accept, Reject, Discard, TemporaryFailure]:
+    """
+    Wraps process_message so that any failure is logged in the same form as
+    the other per-message lines before the MTA is told to try again later.
+    """
+    try:
+        return await process_message(session)
+    except Exception as e:
+        queue_id = session.macros.get("i", "-")
+        mail_from = session.macros.get("{mail_addr}", "-")
+        logger.exception(f"{queue_id} inbound error {mail_from} - {type(e).__name__}: {e}")
+        return TemporaryFailure()
+
+
+handle = Runner(handle_message)
