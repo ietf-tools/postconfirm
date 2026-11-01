@@ -26,6 +26,9 @@ class MockHandler:
             ]
         )
 
+    def is_never_allowed(self, sender: str) -> bool:
+        return False
+
     def set_action_for_sender(self, sender: str, action: str, ref: str):
         self.actions[sender] = (action, ref)
 
