@@ -262,6 +262,9 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
     resent. The challenge response is then discarded. If the challenge
     response fails then the mail is rejected. If the sender is in any
     other state then the response is simply discarded.
+
+    Mail with a null return path can never be challenged, so it is rejected
+    if a destination requires a challenge and accepted otherwise.
     """
 
     # First we set up our Sender
@@ -294,6 +297,16 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
     #
     if mail_from == remail_sender:
         logger.info(f"{macros['i']} outbound accept {mail_from} - message is outbound challege, accept")
+        return Accept()
+
+    elif not mail_from:
+        # RFC 3834 section 2: a response must never be sent to a null path.
+        # Accepting would let any sender skip the challenge by using <>.
+        if challenge_recipients:
+            logger.info(f"{macros['i']} inbound null_sender - message is flagged, return path is null, rejecting")
+            return Reject()
+
+        logger.info(f"{macros['i']} in-or-out allow null_sender - no challenge required")
         return Accept()
 
     elif challenge_recipients and not is_challenge_response:

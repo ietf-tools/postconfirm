@@ -42,6 +42,8 @@ If any recipient requires the sender to be challenged then the sender address wi
 
 An `expired` sender did not respond to the challenge confirmation before their messages were purged.
 
+Mail with a null return path (`MAIL FROM:<>`, such as a bounce) cannot be challenged (RFC 3834). If any recipient requires a challenge the incoming email is `reject`ed, including for any other recipients, and otherwise it is accepted. No sender state is read or changed.
+
 The difference between `reject` and `discard` is how the MTA responds to the sending client. In the case of `reject` it will return an error message, indicating that the message was not accepted. In the case of `discard` it will return a success message, indicating that the message was accepted, but then silently drop the message with no further delivery attempts.
 
 Challenges
