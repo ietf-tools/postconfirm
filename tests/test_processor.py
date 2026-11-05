@@ -17,7 +17,7 @@ from src.milter.processor import (
     get_challenge_subject,
     get_challenge_token_from_subject,
     handle_message,
-    message_should_be_dropped,
+    message_is_automated,
     recipient_requires_challenge,
     reform_email_text,
     release_messages,
@@ -47,47 +47,71 @@ class TestCleanupMail:
         assert cleanup_mail("<>") == ""
 
 
-class TestMessageShouldBeDropped:
+class TestMessageIsAutomated:
     @pytest.fixture(autouse=True)
     def _setup_config(self):
-        from src.milter.processor import header_drop_matchers
+        from src.milter.processor import automated_header_matchers
 
-        header_drop_matchers.clear()
-        services["app_config"] = {
-            "bulk_regex": r"(junk|list|bulk|auto_reply)",
-            "auto_submitted_regex": r"^auto-",
-        }
+        automated_header_matchers.clear()
+        services["app_config"] = {}
         yield
-        header_drop_matchers.clear()
+        automated_header_matchers.clear()
 
     def test_precedence_bulk(self):
-        assert message_should_be_dropped([("Precedence", "bulk")]) is True
+        assert message_is_automated([("Precedence", "bulk")]) is True
 
     def test_precedence_junk(self):
-        assert message_should_be_dropped([("Precedence", "junk")]) is True
+        assert message_is_automated([("Precedence", "junk")]) is True
 
     def test_precedence_list(self):
-        assert message_should_be_dropped([("Precedence", "list")]) is True
+        assert message_is_automated([("Precedence", "list")]) is True
 
     def test_auto_submitted(self):
-        assert message_should_be_dropped([("Auto-Submitted", "auto-replied")]) is True
+        assert message_is_automated([("Auto-Submitted", "auto-replied")]) is True
 
     def test_auto_submitted_generated(self):
-        assert message_should_be_dropped([("Auto-Submitted", "auto-generated")]) is True
+        assert message_is_automated([("Auto-Submitted", "auto-generated")]) is True
 
-    def test_normal_headers_not_dropped(self):
+    def test_normal_headers_not_automated(self):
         headers = [
             ("From", " user@example.com"),
             ("To", " list@example.com"),
             ("Subject", " Hello"),
         ]
-        assert message_should_be_dropped(headers) is False
+        assert message_is_automated(headers) is False
 
     def test_empty_headers(self):
-        assert message_should_be_dropped([]) is False
+        assert message_is_automated([]) is False
 
-    def test_precedence_normal_not_dropped(self):
-        assert message_should_be_dropped([("Precedence", "normal")]) is False
+    def test_precedence_normal_not_automated(self):
+        assert message_is_automated([("Precedence", "normal")]) is False
+
+    @pytest.mark.parametrize("name", ["auto-submitted", "AUTO-SUBMITTED", "Auto-Submitted"])
+    def test_auto_submitted_name_any_case(self, name):
+        assert message_is_automated([(name, " auto-replied")]) is True
+
+    @pytest.mark.parametrize("name", ["precedence", "PRECEDENCE"])
+    def test_precedence_name_any_case(self, name):
+        assert message_is_automated([(name, " bulk")]) is True
+
+    @pytest.mark.parametrize("value", [
+        " auto-replied", " Auto-Replied", " AUTO-GENERATED", "\r\n auto-replied",
+        " auto-replied; owner-email=a@b.c", " x-custom",
+    ])
+    def test_auto_submitted_any_value_but_no(self, value):
+        assert message_is_automated([("Auto-Submitted", value)]) is True
+
+    @pytest.mark.parametrize("value", [" no", " NO", " no ", " no; x=y", " no (human)", "\r\n no"])
+    def test_auto_submitted_no_is_not_automated(self, value):
+        assert message_is_automated([("Auto-Submitted", value)]) is False
+
+    def test_precedence_value_any_case(self):
+        assert message_is_automated([("Precedence", " BULK")]) is True
+
+    def test_auto_submitted_regex_override(self):
+        services["app_config"] = {"auto_submitted_regex": r"^auto-"}
+        assert message_is_automated([("Auto-Submitted", " x-custom")]) is False
+        assert message_is_automated([("Auto-Submitted", " AUTO-replied")]) is True
 
 
 class TestSubjectIsChallengeResponse:

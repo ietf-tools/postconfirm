@@ -3,6 +3,16 @@ from tests.mocks.sender_handler import MockHandler, defined_sender
 
 
 class TestSender:
+    def test_holding_a_message_only_stashes_it(self):
+        handler = MockHandler()
+        sender = Sender("someone@example.org", handler)
+
+        sender.hold_message("a message", ["a@b.c"])
+
+        assert handler.stash["someone@example.org"] == [("a message", ["a@b.c"])]
+        assert "someone@example.org" not in handler.actions
+        assert sender.get_refs() == []
+
     def test_it_initializes(self):
         sender = Sender(defined_sender, MockHandler())
         assert sender

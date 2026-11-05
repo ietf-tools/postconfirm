@@ -110,6 +110,18 @@ Configuration
 | key_file            | string           | The path to the file containing the bytes for the key used to validate the confirmations                            |
 | challenges          | array of objects | Challenge handler configurations. See [Challenge Handlers](#challenges). Defaults to the internal handler only.     |
 | resend_confirmation | boolean          | Should a new challenge be sent if a new email is received whilst the sender is being challenged. Defaults to False. |
+| bulk_regex          | string           | Case-insensitive pattern for `Precedence` values treated as automated. Defaults to `(junk\|list\|bulk\|auto_reply)`. Use `(?!)` to never match. |
+| auto_submitted_regex | string          | Case-insensitive pattern for `Auto-Submitted` values treated as automated. Defaults to any value other than `no`.   |
+
+### Loop protection (RFC 3834)
+
+A message is automated if it has an `Auto-Submitted` header with any value other than `no`, or a `Precedence` header matching `bulk_regex`. Automated mail never causes a challenge to be sent:
+
+* If the sender would otherwise be challenged the mail is held in the stash and the sender's state does not change. It is released if the sender later confirms from a normal message, and is otherwise purged after `purge.time_to_live`. A sender who only sends automated mail is never challenged, so that mail is lost when it is purged, including any copies for unprotected recipients.
+* An automated message containing a valid challenge token does not confirm the sender.
+* Mail to unprotected recipients, and mail from accepted senders, is not affected.
+
+`List-*` headers are not considered.
 
 ### Legacy Configuration
 

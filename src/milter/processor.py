@@ -22,7 +22,7 @@ LINE_SEP = "\n"
 IDENTIFIER_CHARS = string.ascii_letters + string.digits + '-'
 
 
-header_drop_matchers = {}
+automated_header_matchers = {}
 
 
 def recipient_requires_challenge(recipients: list) -> Union[False, list]:
@@ -38,25 +38,31 @@ def recipient_requires_challenge(recipients: list) -> Union[False, list]:
         return False
 
 
-def message_should_be_dropped(headers: list[dict]) -> bool:
-    if "Precedence" not in header_drop_matchers:
-        header_drop_matchers["Precedence"] = re.compile(
-            services["app_config"].get("bulk_regex", r"(junk|list|bulk|auto_reply)")
+def message_is_automated(headers: list[dict]) -> bool:
+    """
+    Determines if a message must not be automatically responded to.
+
+    RFC 3834 section 2 covers Auto-Submitted with any value other than "no".
+    Header names and these values are case-insensitive.
+    """
+    if "precedence" not in automated_header_matchers:
+        automated_header_matchers["precedence"] = re.compile(
+            services["app_config"].get("bulk_regex", r"(junk|list|bulk|auto_reply)"),
+            re.IGNORECASE,
         )
 
-    if "Auto-Submitted" not in header_drop_matchers:
-        header_drop_matchers["Auto-Submitted"] = re.compile(
-            services["app_config"].get("auto_submitted_regex", r"^auto-")
+    if "auto-submitted" not in automated_header_matchers:
+        automated_header_matchers["auto-submitted"] = re.compile(
+            services["app_config"].get("auto_submitted_regex", r"^(?!no\s*(?:[;(]|$))"),
+            re.IGNORECASE,
         )
 
     for header, entry in headers:
-        if header in header_drop_matchers:
-            trimmed_entry = entry.lstrip()
+        matcher = automated_header_matchers.get(header.lower())
 
-            if header_drop_matchers[header].search(trimmed_entry):
-                logger.debug("Dropping: header {header} matched {entry}",
-                             extra={"header": header, "entry": entry})
-                return True
+        if matcher and matcher.search(entry.strip()):
+            logger.debug("Automated: header %(header)s matched %(entry)s", {"header": header, "entry": entry})
+            return True
 
     return False
 
@@ -244,11 +250,16 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
 
     Decisions are made on the basis of where the message is going to and
     then who the sender is, since not all messages will be covered by the
-    challenge system. Bulk messages that would otherwise be challenged are
-    dropped. Once we know that at least one destination requires a
+    challenge system. Once we know that at least one destination requires a
     challenge the sender is examined. In the simple cases the action will
     be either "accept", "reject", or "discard" and the appropriate
     response can be sent immediately.
+
+    Automated messages (see message_is_automated) never cause a challenge
+    to be sent. If the sender would otherwise be challenged the mail is
+    stashed and the sender is left as they were, so that a later message
+    from a person is challenged as normal and releases this one as well.
+    An automated message can also never confirm a sender.
 
     If the sender is "unknown" then we start the challenge process, which
     includes stashing the mail and indicating that the original should be
@@ -288,7 +299,7 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
 
     is_challenge_response = subject_is_challenge_response(cleaned_subject)
 
-    should_drop = message_should_be_dropped(mail_headers)
+    is_automated = message_is_automated(mail_headers)
 
     # Now we can determine the course of action
     #
@@ -325,6 +336,11 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
 
         mail_as_text = reform_email_text(mail_headers, mail_body)
 
+        if is_automated and action != "confirm":
+            logger.info(f"{macros['i']} inbound hold {mail_from} - message is automated, holding without challenge")
+            sender.hold_message(mail_as_text, mail_recipients)
+            return Discard()
+
         challenge_reference = extract_reference(mail_headers)
 
         sender.stash_message(mail_as_text, mail_recipients, challenge_reference)
@@ -339,6 +355,10 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
 
     elif is_challenge_response:
         # Process the response
+        if is_automated:
+            logger.info(f"{macros['i']} inbound automated_response {mail_from} - automated mail cannot confirm a sender")
+            return Discard()
+
         action = sender.get_action()
 
         if action == "confirm":

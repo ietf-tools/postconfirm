@@ -198,6 +198,15 @@ class Sender:
         else:
             return self.get_refs()
 
+    def hold_message(self, msg: str, recipients: list[str]) -> None:
+        """
+        Stashes the email message without starting a confirmation, so the
+        action and references of the sender do not change.
+        """
+        logger.debug("Holding message for %(email)s", {"email": self.email})
+
+        self.handler.stash_message_for_sender(self.email, msg, recipients)
+
     def unstash_messages(self) -> Iterable[tuple[str, str]]:
         """
         Iterates over the stashed email messages, yielding a tuple
