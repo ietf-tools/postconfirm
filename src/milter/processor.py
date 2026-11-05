@@ -120,8 +120,7 @@ async def send_challenge(
             ("To", f" {sender.email}"),
             ("Subject", get_challenge_subject(sender.email, recipients, reference)),
             ("Date", f" {formatdate(usegmt=True)}"),
-            # Without a domain make_msgid blocks on a hostname lookup
-            ("Message-ID", f" {make_msgid(domain=challenge_address.rpartition('@')[2])}"),
+            ("Message-ID", f" {make_msgid(domain=get_remail_sender_domain(services['app_config']))}"),
         ]
 
         if original_message_id:
@@ -153,6 +152,20 @@ def cleanup_mail(email) -> str:
         return matches[2]
     else:
         return email
+
+
+def get_remail_sender_domain(app_config) -> str:
+    """
+    Returns the domain of remail_sender, which is used for the Message-ID
+    of challenges. Without a domain make_msgid would block on a hostname
+    lookup, so a remail_sender without one (eg "<>") is a ValueError.
+    """
+    (_, at, domain) = cleanup_mail(app_config.get("remail_sender") or "").rpartition("@")
+
+    if not (at and domain):
+        raise ValueError("remail_sender must be an email address with a domain")
+
+    return domain
 
 
 async def extract_headers(session: Session) -> tuple[Optional[str], list]:
