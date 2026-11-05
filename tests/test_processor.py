@@ -299,7 +299,11 @@ class TestCriticalSectionsSurviveCancellation:
         template = tmp_path / "confirm.email.mustache"
         template.write_text("Please confirm {{ sender_address }}")
         self.remailer = BlockingRemailer()
-        services["app_config"] = {"mail_template": str(template), "admin_address": "admin@example.com"}
+        services["app_config"] = {
+            "mail_template": str(template),
+            "admin_address": "admin@example.com",
+            "remail_sender": "verify@example.net",
+        }
         services["validator"] = _make_test_validator()
         services["remailer"] = self.remailer
         yield

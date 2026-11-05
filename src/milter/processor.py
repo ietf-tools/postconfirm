@@ -3,6 +3,7 @@ import random
 import re
 import string
 from email.header import decode_header, make_header
+from email.utils import formatdate, make_msgid
 from typing import Optional, Union
 
 import chevron
@@ -93,7 +94,13 @@ def reform_email_text(headers: list, body_chunks: list) -> str:
     return f"{LINE_SEP.join(form_header(header) for header in headers)}{LINE_SEP}{LINE_SEP}{''.join(body_chunks)}"
 
 
-async def send_challenge(sender: Sender, subject: str, recipients: list[str], reference: str) -> None:
+async def send_challenge(
+    sender: Sender,
+    subject: str,
+    recipients: list[str],
+    reference: str,
+    original_message_id: Optional[str] = None,
+) -> None:
     """
     Send the challenge email to the sender, with the reference
     and then update the sender to indicate this.
@@ -118,8 +125,15 @@ async def send_challenge(sender: Sender, subject: str, recipients: list[str], re
             ("From", f" {challenge_address}"),
             ("To", f" {sender.email}"),
             ("Subject", get_challenge_subject(sender.email, recipients, reference)),
-            ("Auto-Submitted", " auto-replied"),
+            ("Date", f" {formatdate(usegmt=True)}"),
+            ("Message-ID", f" {make_msgid(domain=get_remail_sender_domain(services['app_config']))}"),
         ]
+
+        if original_message_id:
+            headers.append(("In-Reply-To", f" {original_message_id}"))
+            headers.append(("References", f" {original_message_id}"))
+
+        headers.append(("Auto-Submitted", " auto-replied"))
 
         challenge_message = reform_email_text(headers, [message_text])
 
@@ -144,6 +158,20 @@ def cleanup_mail(email) -> str:
         return matches[2]
     else:
         return email
+
+
+def get_remail_sender_domain(app_config) -> str:
+    """
+    Returns the domain of remail_sender, which is used for the Message-ID
+    of challenges. Without a domain make_msgid would block on a hostname
+    lookup, so a remail_sender without one (eg "<>") is a ValueError.
+    """
+    (_, at, domain) = cleanup_mail(app_config.get("remail_sender") or "").rpartition("@")
+
+    if not (at and domain):
+        raise ValueError("remail_sender must be an email address with a domain")
+
+    return domain
 
 
 async def extract_headers(session: Session) -> tuple[Optional[str], list]:
@@ -226,6 +254,16 @@ def extract_reference(mail_headers: list[dict]) -> str:
     logging.warning("Message is missing a Message ID. Generating a reference code")
 
     return ''.join(random.sample(IDENTIFIER_CHARS, 10))
+
+
+def extract_message_id(mail_headers: list[dict]) -> Optional[str]:
+    """
+    Returns the message's Message-ID if it is safe to copy into another
+    message, since it is supplied by the sender.
+    """
+    message_id = next((header[1] for header in mail_headers if header[0].lower() == "message-id"), "").strip()
+
+    return message_id if re.fullmatch(r"<[^<>\s]+@[^<>\s]+>", message_id) else None
 
 
 async def release_messages(sender: Sender) -> None:
@@ -362,7 +400,9 @@ async def process_message(session: Session) -> Union[Accept, Reject, Discard]:
 
         if action in actions_to_challenge:
             logger.info(f"{macros['i']} inbound challenge {mail_from} - sender requires challenge")
-            await send_challenge(sender, cleaned_subject, challenge_recipients, challenge_reference)
+            await send_challenge(
+                sender, cleaned_subject, challenge_recipients, challenge_reference, extract_message_id(mail_headers)
+            )
 
         return Discard()
 

@@ -50,6 +50,7 @@ def start_postconfirm(tmp_path):
             f"log: {{ filename: '{tmp_path / 'postconfirm.log'}' }}\n"
             f"shutdown: {{ drain_seconds: {drain_seconds} }}\n"
             f"milter_port: {port}\n"
+            "remail_sender: 'verify@example.net'\n"
             "db: {}\n"
         )
 

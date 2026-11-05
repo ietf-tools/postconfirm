@@ -7,7 +7,7 @@ from logging.handlers import TimedRotatingFileHandler
 from anyio import create_task_group, create_tcp_listener, current_time, open_signal_receiver, run
 import config
 
-from src.milter import handle
+from src.milter import get_remail_sender_domain, handle
 from src.remailer import Remailer
 from src.validator import Validator
 from src.challenge import init_handlers as init_challenge_handlers
@@ -64,6 +64,10 @@ async def main():
     logger.addHandler(file_handler)
 
     #logger = logging.LoggerAdapter(logger)
+
+    # Challenges take their Message-ID domain from remail_sender, so refuse
+    # to start without one rather than fail on every challenge
+    get_remail_sender_domain(app_config)
 
     # Set up a services registry
     services["app_config"] = app_config
